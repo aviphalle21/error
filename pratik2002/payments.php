@@ -16,7 +16,7 @@ if (isset($_POST['update_price'])) {
     $new_price = $_POST['new_price'];
     
     // Check if there are ANY active subscriptions using this plan
-    $checkStmt = $pdo->prepare("SELECT COUNT(*) as active_count FROM user_subscriptions WHERE plan_id = ? AND subscription_status = 'Active'");
+    $checkStmt = $pdo->prepare("SELECT COUNT(*) as active_count FROM user_subscriptions WHERE plan_id = ? AND subscription_status = 'ACTIVE'");
     $checkStmt->execute([$plan_id]);
     $activeCount = $checkStmt->fetchColumn();
     
@@ -141,7 +141,7 @@ $showBackButton = true;
                                     <td data-label="Plan"><?= htmlspecialchars($sub['plan_name']) ?></td>
                                     <td data-label="Amount"><strong>₹<?= number_format($sub['amount_paid'], 2) ?></strong></td>
                                     <td data-label="Payment Status">
-                                        <?php if ($sub['payment_status'] === 'Paid'): ?>
+                                        <?php if ($sub['payment_status'] === 'PAYMENT_VERIFIED'): ?>
                                             <span class="badge badge-active">Paid</span>
                                         <?php else: ?>
                                             <span class="badge badge-pending"><?= htmlspecialchars($sub['payment_status']) ?></span>

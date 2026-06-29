@@ -126,7 +126,7 @@ $expiringStmt = $pdo->query("
     JOIN users u ON us.user_id = u.user_id
     JOIN library_tables t ON us.table_id = t.table_id
     WHERE us.expiry_date BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 7 DAY)
-    AND us.subscription_status = 'Active'
+    AND us.subscription_status = 'ACTIVE'
     ORDER BY us.expiry_date ASC
     LIMIT 10
 ");

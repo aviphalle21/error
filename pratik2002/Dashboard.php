@@ -168,8 +168,8 @@ $notifications = $notifStmt->fetchAll();
             <div class="list-right">
                 <?php 
                     $bClass = 'badge-primary';
-                    if($b['booking_status'] == 'Pending') $bClass = 'badge-warning';
-                    if($b['booking_status'] == 'Active') $bClass = 'badge-success';
+                    if($b['booking_status'] == 'PENDING_PAYMENT') $bClass = 'badge-warning';
+                    if($b['booking_status'] == 'ACTIVE') $bClass = 'badge-success';
                 ?>
                 <div class="badge <?= $bClass ?>"><?= $b['booking_status'] ?></div>
                 <div class="date" style="margin-top:4px;"><?= date('d M Y', strtotime($b['start_date'])) ?></div>
@@ -196,8 +196,8 @@ $notifications = $notifStmt->fetchAll();
                 <div class="value">₹<?= number_format($p['amount']) ?></div>
                 <?php 
                     $pClass = 'badge-primary';
-                    if($p['payment_status'] == 'Pending') $pClass = 'badge-warning';
-                    if($p['payment_status'] == 'Paid') $pClass = 'badge-success';
+                    if($p['payment_status'] == 'PENDING_PAYMENT') $pClass = 'badge-warning';
+                    if($p['payment_status'] == 'PAYMENT_VERIFIED') $pClass = 'badge-success';
                 ?>
                 <div class="badge <?= $pClass ?>"><?= $p['payment_status'] ?></div>
             </div>
