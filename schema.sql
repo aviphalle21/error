@@ -69,12 +69,10 @@ CREATE TABLE `system_settings` (
 INSERT INTO `system_settings` (`setting_key`, `setting_value`) VALUES
 ('library_name', 'Saraswati Abhyasika'),
 ('library_logo', 'assets/logo.png'),
-('website_url', 'http://localhost/N2'),
 ('support_email', 'support@saraswatiabhyasika.com'),
 ('contact_number', '+91 0000000000'),
 ('timezone', 'Asia/Kolkata'),
 ('currency', 'INR'),
-('language', 'en'),
 ('email_provider', 'Brevo'),
 ('brevo_api_key', ''),
 ('smtp_host', ''),
