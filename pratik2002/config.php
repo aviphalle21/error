@@ -18,7 +18,7 @@ try {
     $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     error_log("Admin Database connection failed: " . $e->getMessage());
-    echo $e->getMessage();
+    exit('A critical system error occurred. Please try again later.');
 }
 
 SessionManager::startSecureSession();

@@ -230,3 +230,29 @@ body {
     color: #f3f4f6;
     font-family: monospace;
 }
+.auth-link {
+    color: var(--text-muted);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.auth-link:hover {
+    color: var(--brand-black);
+    text-decoration: underline;
+}
+
+@media (max-width: 560px) {
+    body {
+        align-items: flex-start;
+        padding: 20px 12px;
+    }
+
+    .auth-container {
+        padding: 28px 20px;
+        border-radius: 16px;
+    }
+
+    .auth-header h1 {
+        font-size: 1.45rem;
+    }
+}
