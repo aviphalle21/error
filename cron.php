@@ -8,17 +8,17 @@ try {
     $pdo->beginTransaction();
 
     // 1. Find all expired subscriptions
-    $stmt = $pdo->prepare("SELECT subscription_id, table_id, user_id FROM user_subscriptions WHERE expiry_date < CURDATE() AND subscription_status = 'Active'");
+    $stmt = $pdo->prepare("SELECT subscription_id, table_id, user_id FROM user_subscriptions WHERE expiry_date < CURDATE() AND subscription_status = 'ACTIVE'");
     $stmt->execute();
     $expiredSubs = $stmt->fetchAll();
 
     foreach ($expiredSubs as $sub) {
         // Update subscription
-        $updSub = $pdo->prepare("UPDATE user_subscriptions SET subscription_status = 'Completed' WHERE subscription_id = ?");
+        $updSub = $pdo->prepare("UPDATE user_subscriptions SET subscription_status = 'COMPLETED' WHERE subscription_id = ?");
         $updSub->execute([$sub['subscription_id']]);
 
         // Update bookings related to this user and table that are active
-        $updBook = $pdo->prepare("UPDATE bookings SET booking_status = 'Completed' WHERE user_id = ? AND table_id = ? AND booking_status = 'Active'");
+        $updBook = $pdo->prepare("UPDATE bookings SET booking_status = 'COMPLETED' WHERE user_id = ? AND table_id = ? AND booking_status = 'ACTIVE'");
         $updBook->execute([$sub['user_id'], $sub['table_id']]);
 
         // Release Table if it's not marked as maintenance and the current user is this user

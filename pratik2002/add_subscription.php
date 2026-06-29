@@ -31,13 +31,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->beginTransaction();
 
         // 1. Insert Subscription
-        $subStmt = $pdo->prepare("INSERT INTO user_subscriptions (user_id, table_id, plan_id, start_date, expiry_date, amount_paid, payment_status, subscription_status) VALUES (?, ?, ?, ?, ?, ?, 'Paid', 'Active')");
+        $subStmt = $pdo->prepare("INSERT INTO user_subscriptions (user_id, table_id, plan_id, start_date, expiry_date, amount_paid, payment_status, subscription_status) VALUES (?, ?, ?, ?, ?, ?, 'PAYMENT_VERIFIED', 'ACTIVE')");
         $subStmt->execute([$user_id, $table_id, $plan_id, $start_date, $expiry_date, $amount_paid]);
         $subscription_id = $pdo->lastInsertId();
 
         // 2. Insert Payment
         $payment_ref = 'PAY-' . strtoupper(uniqid());
-        $payStmt = $pdo->prepare("INSERT INTO payments (payment_reference, user_id, subscription_id, amount, payment_method, payment_status) VALUES (?, ?, ?, ?, ?, 'Paid')");
+        $payStmt = $pdo->prepare("INSERT INTO payments (payment_reference, user_id, subscription_id, amount, payment_method, payment_status) VALUES (?, ?, ?, ?, ?, 'PAYMENT_VERIFIED')");
         $payStmt->execute([$payment_ref, $user_id, $subscription_id, $amount_paid, $payment_method]);
 
         // 3. Update Table Status
@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $chkBooking = $pdo->query("SHOW TABLES LIKE 'bookings'");
         if($chkBooking->rowCount() > 0) {
             $bRef = "BK-" . mt_rand(100000, 999999);
-            $bookStmt = $pdo->prepare("INSERT INTO bookings (user_id, table_id, start_date, expiry_date, booking_status, booking_reference, plan_price, booking_price) VALUES (?, ?, ?, ?, 'Active', ?, ?, ?)");
+            $bookStmt = $pdo->prepare("INSERT INTO bookings (user_id, table_id, start_date, expiry_date, booking_status, booking_reference, plan_price, booking_price) VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?, ?)");
             $bookStmt->execute([$user_id, $table_id, $start_date, $expiry_date, $bRef, $plan_price, $amount_paid]);
         }
         
