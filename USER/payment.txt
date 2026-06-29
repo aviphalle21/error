@@ -1,0 +1,1058 @@
+<?php
+// USER/payment.php  –  UPI QR + Razorpay Payment Link (no Key Secret required)
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/payment_config.php';
+
+if (!isset($pdo) || !$pdo instanceof PDO) {
+    exit('A critical system error occurred. Please try again later.');
+}
+
+if (!isset($_SESSION['user_id'])) {
+    header("Location: index.php");
+    exit;
+}
+
+$user_id  = $_SESSION['user_id'];
+$table_id = isset($_GET['table_id']) ? trim($_GET['table_id']) : '';
+
+if (empty($table_id)) {
+    header("Location: dashboard.php");
+    exit;
+}
+
+$stmt = $pdo->prepare("SELECT full_name, email, phone FROM users WHERE user_id = ?");
+$stmt->execute([$user_id]);
+$user = $stmt->fetch();
+
+$plansStmt = $pdo->query("SELECT plan_id, plan_name, price, duration_days FROM subscription_plans WHERE active = 1");
+$plans = $plansStmt->fetchAll();
+
+$success = isset($_GET['success']) && $_GET['success'] == 1;
+$failed  = isset($_GET['failed'])  && $_GET['failed']  == 1;
+$failMsg = isset($_GET['reason'])  ? urldecode($_GET['reason']) : '';
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+function jsonResponse(array $payload): void
+{
+    header('Content-Type: application/json');
+    echo json_encode($payload);
+    exit;
+}
+
+// ─── Core booking completion (called once payment is confirmed Paid) ───────────
+function completePaidBooking(PDO $pdo, int $user_id, string $table_number, string $payment_reference, array $user): array
+{
+    $pdo->beginTransaction();
+    try {
+        $paymentStmt = $pdo->prepare("
+            SELECT p.payment_id, p.subscription_id, p.amount, p.payment_status,
+                   p.created_at, us.plan_id, us.table_id, us.expiry_date, sp.duration_days
+            FROM payments p
+            JOIN user_subscriptions us ON p.subscription_id = us.subscription_id
+            JOIN subscription_plans sp ON us.plan_id = sp.plan_id
+            WHERE p.payment_reference = ? AND p.user_id = ?
+            FOR UPDATE
+        ");
+        $paymentStmt->execute([$payment_reference, $user_id]);
+        $payment = $paymentStmt->fetch();
+
+        if (!$payment) {
+            throw new Exception('Payment request not found.');
+        }
+
+        $secondsSinceCreated = $payment['created_at'] ? time() - strtotime($payment['created_at']) : 0;
+
+        // Payment window expired → mark as Failed
+        if ($payment['payment_status'] === 'Pending' && $secondsSinceCreated > PAYMENT_WINDOW_SECONDS) {
+            $pdo->prepare("UPDATE payments SET payment_status = 'Failed', payment_date = NOW() WHERE payment_id = ?")->execute([$payment['payment_id']]);
+            $pdo->prepare("UPDATE user_subscriptions SET payment_status = 'Failed', subscription_status = 'Inactive' WHERE subscription_id = ?")->execute([$payment['subscription_id']]);
+            $pdo->commit();
+            return [
+                'completed' => false,
+                'timed_out' => true,
+                'failed'    => true,
+                'redirect'  => 'payment.php?table_id=' . urlencode($table_number) . '&failed=1&reason=' . urlencode('Payment window expired. If any amount was deducted it will be automatically refunded within 24 hours.'),
+                'message'   => 'Payment window expired.',
+            ];
+        }
+
+        // Already Failed or Refunded
+        if (in_array($payment['payment_status'], ['Failed', 'Refunded'])) {
+            $pdo->commit();
+            $reason = $payment['payment_status'] === 'Refunded'
+                ? 'This payment was already refunded.'
+                : 'Payment was not completed. If any amount was deducted it will be refunded within 24 hours.';
+            return [
+                'completed' => false,
+                'failed'    => true,
+                'redirect'  => 'payment.php?table_id=' . urlencode($table_number) . '&failed=1&reason=' . urlencode($reason),
+                'message'   => $reason,
+            ];
+        }
+
+        // Still Pending (user hasn't paid yet)
+        if ($payment['payment_status'] !== 'Paid') {
+            $pdo->commit();
+            $windowLeft = PAYMENT_WINDOW_SECONDS - $secondsSinceCreated;
+            return [
+                'completed'    => false,
+                'timed_out'    => false,
+                'message'      => 'Waiting for payment confirmation. Please complete UPI payment and click "Ive Paid".',
+                'seconds_left' => max(0, $windowLeft),
+            ];
+        }
+
+        // Payment is Paid → create booking if not already done
+        $activeStmt = $pdo->prepare("SELECT booking_id FROM bookings WHERE user_id = ? AND table_id = ? AND booking_status = 'Active'");
+        $activeStmt->execute([$user_id, $payment['table_id']]);
+        if (!$activeStmt->fetch()) {
+            $tableStmt = $pdo->prepare("SELECT status FROM library_tables WHERE table_id = ? FOR UPDATE");
+            $tableStmt->execute([$payment['table_id']]);
+            $tableRow = $tableStmt->fetch();
+
+            if (!$tableRow || $tableRow['status'] === 'Booked') {
+                $pdo->rollBack();
+                return [
+                    'completed' => false,
+                    'failed'    => true,
+                    'redirect'  => 'payment.php?table_id=' . urlencode($table_number) . '&failed=1&reason=' . urlencode('This table was taken by someone else. Your payment of ₹' . $payment['amount'] . ' will be refunded within 24 hours.'),
+                    'message'   => 'Table no longer available.',
+                ];
+            }
+
+            // Activate subscription
+            $pdo->prepare("UPDATE user_subscriptions SET payment_status = 'Paid', subscription_status = 'Active', start_date = CURDATE(), expiry_date = DATE_ADD(CURDATE(), INTERVAL ? DAY) WHERE subscription_id = ?")
+                ->execute([$payment['duration_days'], $payment['subscription_id']]);
+
+            // Create booking
+            $bookingRef = 'BK-' . mt_rand(100000, 999999);
+            $pdo->prepare("INSERT INTO bookings (user_id, table_id, start_date, expiry_date, booking_status, booking_reference, plan_price, booking_price) VALUES (?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL ? DAY), 'Active', ?, ?, ?)")
+                ->execute([$user_id, $payment['table_id'], $payment['duration_days'], $bookingRef, $payment['amount'], $payment['amount']]);
+
+            // Mark table booked
+            $pdo->prepare("UPDATE library_tables SET status = 'Booked', current_user_id = ? WHERE table_id = ?")
+                ->execute([$user_id, $payment['table_id']]);
+
+            // Notification
+            $pdo->prepare("INSERT INTO system_notifications (type, title, message) VALUES ('payment', 'New Payment & Booking', ?)")
+                ->execute([$user['full_name'] . " paid ₹" . $payment['amount'] . " and booked Table T-{$table_number}."]);
+
+            // Email
+            @mail(
+                $user['email'],
+                'Booking Confirmed – Saraswati Abhyasika',
+                "Hello {$user['full_name']},\n\nYour booking for Table T-{$table_number} is confirmed!\n\nBooking Reference: {$bookingRef}\nAmount Paid: ₹{$payment['amount']}\n\nThank you for choosing Saraswati Abhyasika!",
+                "From: noreply@saraswatiabhyasika.com\r\nX-Mailer: PHP/" . phpversion()
+            );
+
+            // SMS log
+            file_put_contents(
+                'notification_logs.txt',
+                '[' . date('Y-m-d H:i:s') . "] SMS queued for {$user['phone']}: Booking T-{$table_number} confirmed. Paid ₹{$payment['amount']}. Ref: {$bookingRef}\n",
+                FILE_APPEND
+            );
+        }
+
+        $pdo->commit();
+        return [
+            'completed' => true,
+            'redirect'  => 'payment.php?table_id=' . urlencode($table_number) . '&success=1',
+        ];
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+}
+
+// ─── AJAX endpoint ─────────────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    try {
+
+        // ── Init payment: create pending DB record + return QR data ──────────
+        if ($_POST['action'] === 'init_payment') {
+            $plan_id = $_POST['plan_id'] ?? '';
+            if (empty($plan_id)) throw new Exception('Please select a plan.');
+
+            // Block duplicate active bookings
+            $checkSub = $pdo->prepare("SELECT subscription_id FROM user_subscriptions WHERE user_id = ? AND subscription_status = 'Active' AND payment_status = 'Paid'");
+            $checkSub->execute([$user_id]);
+            if ($checkSub->fetch()) throw new Exception('You already have an active table booking.');
+
+            $pStmt = $pdo->prepare("SELECT price, duration_days FROM subscription_plans WHERE plan_id = ? AND active = 1");
+            $pStmt->execute([$plan_id]);
+            $selectedPlan = $pStmt->fetch();
+            if (!$selectedPlan) throw new Exception('Invalid plan selected.');
+
+            $tStmt = $pdo->prepare("SELECT table_id, status FROM library_tables WHERE table_number = ?");
+            $tStmt->execute([$table_id]);
+            $tableRow = $tStmt->fetch();
+            if (!$tableRow || $tableRow['status'] === 'Booked') throw new Exception('This table is no longer available.');
+
+            $reference = 'TXN' . time() . mt_rand(1000, 9999);
+
+            // Save pending records
+            $pdo->beginTransaction();
+            $pdo->prepare("INSERT INTO user_subscriptions (user_id, plan_id, table_id, start_date, expiry_date, amount_paid, payment_status, subscription_status) VALUES (?, ?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL ? DAY), ?, 'Pending', 'Active')")
+                ->execute([$user_id, $plan_id, $tableRow['table_id'], $selectedPlan['duration_days'], $selectedPlan['price']]);
+            $subscription_id = $pdo->lastInsertId();
+
+            $pdo->prepare("INSERT INTO payments (user_id, subscription_id, amount, payment_method, payment_status, payment_reference, created_at, payment_date) VALUES (?, ?, ?, 'UPI', 'Pending', ?, NOW(), NOW())")
+                ->execute([$user_id, $subscription_id, $selectedPlan['price'], $reference]);
+            $pdo->commit();
+
+            // Build UPI deep-link
+            $upiUrl = 'upi://pay?' . http_build_query([
+                'pa' => PAYMENT_UPI_ID,
+                'pn' => PAYMENT_PAYEE_NAME,
+                'am' => number_format($selectedPlan['price'], 2, '.', ''),
+                'cu' => PAYMENT_CURRENCY,
+                'tn' => 'Library table booking ' . $reference,
+                'tr' => $reference,
+            ]);
+
+            jsonResponse([
+                'ok'            => true,
+                'reference'     => $reference,
+                'amount'        => $selectedPlan['price'],
+                'upi_url'       => $upiUrl,
+                'rzp_link'      => RAZORPAY_PAYMENT_LINK,
+                'window'        => PAYMENT_WINDOW_SECONDS,
+                'upi_id'        => PAYMENT_UPI_ID,
+                'payee_name'    => PAYMENT_PAYEE_NAME,
+            ]);
+        }
+
+        // ── Check payment status (user clicked "I've Paid") ───────────────────
+        if ($_POST['action'] === 'check_payment') {
+            $reference = $_POST['reference'] ?? '';
+            if (empty($reference)) throw new Exception('Payment reference is missing.');
+            jsonResponse(['ok' => true] + completePaidBooking($pdo, $user_id, $table_id, $reference, $user));
+        }
+    } catch (Exception $e) {
+        jsonResponse(['ok' => false, 'message' => $e->getMessage()]);
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Payment & Booking – Saraswati Abhyasika</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="dashboard.css">
+        <style>
+        body {
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at 15% 15%, rgba(59, 130, 246, .35), transparent 30%),
+                radial-gradient(circle at 85% 20%, rgba(236, 72, 153, .28), transparent 28%),
+                radial-gradient(circle at 50% 90%, rgba(16, 185, 129, .28), transparent 30%),
+                linear-gradient(135deg, #0f172a 0%, #1e1b4b 45%, #312e81 100%);
+        }
+
+        .checkout-card {
+            max-width: 620px;
+            margin: 40px auto;
+            backdrop-filter: blur(22px);
+            background: rgba(255, 255, 255, 0.94) !important;
+            border: 1px solid rgba(255, 255, 255, 0.55);
+            box-shadow: 0 24px 70px rgba(15, 23, 42, .28);
+            animation: cardFloatIn .7s ease both;
+        }
+
+        @keyframes cardFloatIn {
+            from {
+                opacity: 0;
+                transform: translateY(24px) scale(.98);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .navbar {
+            backdrop-filter: blur(22px);
+            background: rgba(255, 255, 255, .15) !important;
+            border-bottom: 1px solid rgba(255, 255, 255, .2);
+        }
+
+        .navbar h1 {
+            font-size: 1.1rem;
+        }
+
+        /* Result screens */
+        .result-box {
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .result-icon {
+            font-size: 4rem;
+            margin-bottom: 16px;
+            display: block;
+        }
+
+        .result-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .result-subtitle {
+            font-size: 1rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            line-height: 1.6;
+        }
+
+        .refund-notice {
+            margin: 20px 0;
+            padding: 16px 20px;
+            background: #fffbeb;
+            border: 1px solid #fcd34d;
+            border-radius: 12px;
+            font-size: .9rem;
+            color: #92400e;
+            text-align: left;
+            line-height: 1.6;
+        }
+
+        .refund-notice strong {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        /* Form */
+        .form-control {
+            width: 100%;
+            padding: 12px 15px;
+            margin-bottom: 20px;
+            border-radius: 12px;
+            border: 2px solid var(--border-color);
+            background: var(--bg-primary);
+            color: var(--text-main);
+            font-size: 1rem;
+            transition: border-color .2s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, .15);
+        }
+
+        /* Steps */
+        .step-label {
+            font-weight: 700;
+            font-size: .9rem;
+            color: #3b82f6;
+            letter-spacing: .03em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        /* Payment box */
+        .payment-box {
+            display: none;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .price-tag {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #10b981;
+            margin-bottom: 4px;
+            text-align: center;
+        }
+
+        .price-sub {
+            font-size: .85rem;
+            color: #64748b;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        /* QR block */
+        .qr-block {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #dynamicQrImg {
+            border-radius: 18px;
+            padding: 10px;
+            background: #fff;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, .12);
+            max-width: 220px;
+            display: block;
+            margin: 0 auto 10px;
+        }
+
+        .upi-id-pill {
+            display: inline-block;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 30px;
+            padding: 6px 16px;
+            font-size: .85rem;
+            font-weight: 600;
+            color: #1d4ed8;
+            margin-bottom: 8px;
+        }
+
+        .qr-apps {
+            font-size: .78rem;
+            color: #94a3b8;
+            margin-top: 4px;
+        }
+
+        /* Divider */
+        .or-divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #94a3b8;
+            font-size: .8rem;
+            font-weight: 600;
+            margin: 16px 0;
+        }
+
+        .or-divider::before,
+        .or-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #e2e8f0;
+        }
+
+        /* Razorpay link btn */
+        .rzp-link-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            padding: 14px 20px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #528ff5, #3b82f6);
+            color: #fff;
+            font-weight: 700;
+            font-size: 1rem;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(59, 130, 246, .3);
+            transition: transform .18s, box-shadow .18s;
+        }
+
+        .rzp-link-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(59, 130, 246, .4);
+        }
+
+        .rzp-link-btn img {
+            width: 22px;
+            height: 22px;
+        }
+
+        /* Countdown ring */
+        .countdown-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 14px 0 8px;
+        }
+
+        .countdown-ring {
+            position: relative;
+            width: 72px;
+            height: 72px;
+        }
+
+        .countdown-ring svg {
+            transform: rotate(-90deg);
+        }
+
+        .countdown-ring circle {
+            fill: none;
+            stroke-width: 6;
+        }
+
+        .ring-bg {
+            stroke: #e2e8f0;
+        }
+
+        .ring-fill {
+            stroke: #3b82f6;
+            stroke-linecap: round;
+            transition: stroke-dashoffset .9s linear;
+        }
+
+        .ring-fill.urgent {
+            stroke: #ef4444;
+        }
+
+        .ring-text {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: .82rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .countdown-label {
+            font-size: .75rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* Status box */
+        .payment-status {
+            display: none;
+            padding: 14px 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            text-align: center;
+            font-weight: 600;
+            font-size: .92rem;
+        }
+
+        .status-waiting {
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+
+        .status-success {
+            background: #ecfdf5;
+            color: #065f46;
+        }
+
+        .status-error {
+            background: #fef2f2;
+            color: #dc2626;
+        }
+
+        .status-timeout {
+            background: #fff7ed;
+            color: #c2410c;
+        }
+
+        /* Spinner */
+        .spinner {
+            display: inline-block;
+            width: 15px;
+            height: 15px;
+            border: 2px solid currentColor;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin .7s linear infinite;
+            vertical-align: middle;
+            margin-right: 7px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Action buttons */
+        .payment-actions {
+            display: none;
+            gap: 12px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .payment-actions .btn-primary {
+            flex: 1;
+            min-width: 130px;
+            padding: 14px;
+            font-size: .95rem;
+        }
+
+        /* Preview pills */
+        .booking-preview {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin: 16px 0 20px;
+        }
+
+        .preview-pill {
+            padding: 14px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, .7);
+            border: 1px solid rgba(148, 163, 184, .3);
+            text-align: center;
+        }
+
+        .preview-pill span {
+            display: block;
+            color: #64748b;
+            font-size: .75rem;
+            margin-bottom: 4px;
+        }
+
+        .preview-pill strong {
+            color: #0f172a;
+            font-size: .9rem;
+        }
+
+        /* Paid confirm banner */
+        .paid-confirm {
+            background: #ecfdf5;
+            border: 1px solid #6ee7b7;
+            border-radius: 14px;
+            padding: 16px 20px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .paid-confirm p {
+            margin: 0 0 12px;
+            color: #065f46;
+            font-size: .92rem;
+        }
+
+        .btn-primary,
+        .btn-secondary {
+            transition: transform .18s, box-shadow .18s;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 24px rgba(37, 99, 235, .25);
+        }
+
+        .btn-primary:active {
+            transform: translateY(1px) scale(.98);
+        }
+
+        @media(max-width:500px) {
+            .booking-preview {
+                grid-template-columns: 1fr;
+            }
+
+            .payment-actions {
+                flex-direction: column;
+            }
+        }
+        </style>
+    </head>
+
+    <body>
+
+        <nav class="navbar">
+            <div class="nav-left">
+                <img src="../IMAGES/SHREE SARASWATI ABHYASIKA LOGO.png" alt="Logo" style="height:38px;">
+                <h1 style="color:#fff;">सरस्वती अभ्यासिका – Checkout</h1>
+            </div>
+            <div class="nav-right">
+                <a href="dashboard.php" class="btn-primary"
+                    style="text-decoration:none; background:rgba(255,255,255,.15); color:#fff; border:1px solid rgba(255,255,255,.3); padding:8px 16px;">
+                    ← Back
+                </a>
+            </div>
+        </nav>
+
+        <div style="display:block; padding:0 20px;">
+            <div class="card checkout-card">
+
+                <?php if ($success): ?>
+                <!-- ══════════ SUCCESS ══════════ -->
+                <div class="result-box">
+                    <span class="result-icon">✅</span>
+                    <div class="result-title" style="color:#059669;">Booking Confirmed!</div>
+                    <p class="result-subtitle">
+                        Your table <strong>T-<?= htmlspecialchars($table_id) ?></strong> has been booked successfully.
+                    </p>
+                    <p class="result-subtitle" style="font-size:.85rem;">
+                        A confirmation has been sent to <strong><?= htmlspecialchars($user['email']) ?></strong>.
+                    </p>
+                    <a href="dashboard.php" class="btn-primary"
+                        style="text-decoration:none; display:inline-block; margin-top:24px; padding:14px 40px;">
+                        Go to My Dashboard
+                    </a>
+                </div>
+
+                <?php elseif ($failed): ?>
+                <!-- ══════════ FAILURE ══════════ -->
+                <div class="result-box">
+                    <span class="result-icon">❌</span>
+                    <div class="result-title" style="color:#dc2626;">Payment Not Confirmed</div>
+                    <p class="result-subtitle">
+                        Your booking for Table <strong>T-<?= htmlspecialchars($table_id) ?></strong> could not be
+                        confirmed.
+                    </p>
+                    <div class="refund-notice">
+                        <?php if ($failMsg): ?>
+                        <?= htmlspecialchars($failMsg) ?>
+                        <?php else: ?>
+                        <strong>💰 Refund Policy</strong>
+                        If any amount was deducted from your bank or UPI wallet, it will be
+                        <strong>automatically refunded within 24 hours</strong>.
+                        If you do not receive the refund, please show your UPI transaction ID to your bank.
+                        <?php endif; ?>
+                    </div>
+                    <div style="display:flex; gap:12px; justify-content:center; margin-top:20px; flex-wrap:wrap;">
+                        <a href="payment.php?table_id=<?= urlencode($table_id) ?>" class="btn-primary"
+                            style="text-decoration:none; width:auto; padding:12px 28px;">🔄 Try Again</a>
+                        <a href="dashboard.php" class="btn-primary"
+                            style="text-decoration:none; width:auto; padding:12px 28px; background:#64748b;">Back to
+                            Dashboard</a>
+                    </div>
+                </div>
+
+                <?php else: ?>
+                <!-- ══════════ CHECKOUT ══════════ -->
+                <h2 style="text-align:center; margin-bottom:4px;">Complete Your Booking</h2>
+                <p style="text-align:center; color:var(--text-muted); margin-bottom:18px;">
+                    Booking Table <strong style="color:#3b82f6;">T-<?= htmlspecialchars($table_id) ?></strong>
+                </p>
+
+                <!-- Preview pills -->
+                <div class="booking-preview">
+                    <div class="preview-pill"><span>Table</span><strong>T-<?= htmlspecialchars($table_id) ?></strong>
+                    </div>
+                    <div class="preview-pill"><span>Plan</span><strong id="previewPlan">—</strong></div>
+                    <div class="preview-pill"><span>Status</span><strong id="previewStatus">Select plan</strong></div>
+                </div>
+
+                <!-- Step 1 -->
+                <span class="step-label">Step 1 — Select Your Plan</span>
+                <select class="form-control" id="planSelect" required>
+                    <option value="">— Choose a Plan —</option>
+                    <?php foreach ($plans as $plan): ?>
+                    <option value="<?= htmlspecialchars($plan['plan_id']) ?>"
+                        data-price="<?= htmlspecialchars($plan['price']) ?>"
+                        data-days="<?= htmlspecialchars($plan['duration_days']) ?>">
+                        <?= htmlspecialchars($plan['plan_name']) ?> — ₹<?= htmlspecialchars($plan['price']) ?> /
+                        <?= htmlspecialchars($plan['duration_days']) ?> days
+                    </option>
+                    <?php endforeach; ?>
+                </select>
+
+                <!-- Step 2: Payment box (shown after plan select) -->
+                <div class="payment-box" id="paymentBox">
+                    <span class="step-label" style="margin-bottom:16px;">Step 2 — Pay Now</span>
+
+                    <div class="price-tag" id="priceDisplay"></div>
+                    <div class="price-sub">Complete payment using any method below</div>
+
+                    <!-- Method A: UPI QR -->
+                    <div class="qr-block">
+                        <img id="dynamicQrImg" src="" alt="UPI QR Code">
+                        <div class="upi-id-pill">📲 <?= htmlspecialchars(PAYMENT_UPI_ID) ?></div>
+                        <p class="qr-apps">GPay · PhonePe · Paytm · Any UPI app</p>
+                    </div>
+
+                    <!-- Countdown -->
+                    <div class="countdown-wrap">
+                        <div class="countdown-ring">
+                            <svg width="72" height="72" viewBox="0 0 72 72">
+                                <circle class="ring-bg" cx="36" cy="36" r="30" />
+                                <circle class="ring-fill" id="ringFill" cx="36" cy="36" r="30" stroke-dasharray="188.5"
+                                    stroke-dashoffset="0" />
+                            </svg>
+                            <div class="ring-text" id="ringText">5:00</div>
+                        </div>
+                        <div class="countdown-label">Time remaining to pay</div>
+                    </div>
+
+                    <!-- OR divider -->
+                    <div class="or-divider">OR</div>
+
+                    <!-- Method B: Razorpay Payment Link -->
+                    <a id="rzpLinkBtn" href="<?= htmlspecialchars(RAZORPAY_PAYMENT_LINK) ?>" target="_blank"
+                        class="rzp-link-btn">
+                        <svg width="22" height="22" viewBox="0 0 40 40" fill="none">
+                            <rect width="40" height="40" rx="8" fill="#002970" />
+                            <path d="M8 28l8-16 5 9-3 7H8z" fill="#528ff5" />
+                            <path d="M16 12l16 4-8 8-8-12z" fill="#fff" />
+                        </svg>
+                        Pay via Razorpay Link
+                    </a>
+                    <p style="text-align:center; font-size:.75rem; color:#94a3b8; margin-top:8px;">
+                        Opens Razorpay's secure checkout in a new tab
+                    </p>
+
+                    <!-- "I've Paid" confirmation -->
+                    <div class="paid-confirm" id="paidConfirm">
+                        <p>After completing payment, click below to confirm your booking:</p>
+                        <button type="button" id="iPaidBtn" class="btn-primary"
+                            style="width:100%; padding:14px; font-size:1rem;">
+                            I've Paid — Confirm My Booking
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Status -->
+                <div class="payment-status" id="paymentStatus"></div>
+
+                <!-- Actions (shown after QR loads) -->
+                <div class="payment-actions" id="paymentActions">
+                    <button type="button" id="checkPaymentBtn" class="btn-primary">🔍 Check Payment Status</button>
+                    <a href="dashboard.php" class="btn-primary"
+                        style="text-align:center; text-decoration:none; background:#64748b;">Cancel</a>
+                </div>
+
+                <?php endif; ?>
+
+            </div><!-- .checkout-card -->
+        </div>
+
+        <script>
+        var TABLE_ID = <?= json_encode($table_id) ?>;
+        var POLL_MS = <?= PAYMENT_POLL_SECONDS * 1000 ?>;
+        var WINDOW_SECS = <?= PAYMENT_WINDOW_SECONDS ?>;
+        var CIRCUM = 2 * Math.PI * 30; // r=30
+
+        var planSelect = document.getElementById('planSelect');
+        var paymentBox = document.getElementById('paymentBox');
+        var priceDisplay = document.getElementById('priceDisplay');
+        var statusBox = document.getElementById('paymentStatus');
+        var dynamicQrImg = document.getElementById('dynamicQrImg');
+        var paymentActions = document.getElementById('paymentActions');
+        var checkPaymentBtn = document.getElementById('checkPaymentBtn');
+        var paidConfirm = document.getElementById('paidConfirm');
+        var iPaidBtn = document.getElementById('iPaidBtn');
+        var previewPlan = document.getElementById('previewPlan');
+        var previewStatus = document.getElementById('previewStatus');
+        var rzpLinkBtn = document.getElementById('rzpLinkBtn');
+        var ringFill = document.getElementById('ringFill');
+        var ringText = document.getElementById('ringText');
+
+        var activeReference = '';
+        var pollTimer = null;
+        var countdownTimer = null;
+        var windowStart = null;
+
+        function showStatus(message, type) {
+            if (typeof type === 'undefined') {
+                type = 'waiting';
+            }
+
+            if (statusBox) {
+                if (type === 'waiting') {
+                    statusBox.innerHTML = "<span class=\"spinner\"></span>" + message;
+                } else {
+                    statusBox.innerHTML = message;
+                }
+                statusBox.className = 'payment-status status-' + type;
+                statusBox.style.display = 'block';
+            }
+
+            if (previewStatus) {
+                if (type === 'success') {
+                    previewStatus.textContent = '✅ Confirmed';
+                } else if (type === 'error') {
+                    previewStatus.textContent = '❌ Failed';
+                } else if (type === 'timeout') {
+                    previewStatus.textContent = '⏰ Timed out';
+                } else {
+                    previewStatus.textContent = '⏳ Waiting';
+                }
+            }
+        }
+
+        function updateCountdown() {
+            if (!windowStart) {
+                return;
+            }
+
+            var elapsed = (Date.now() - windowStart) / 1000;
+            var remaining = Math.max(0, WINDOW_SECS - elapsed);
+            var mins = String(Math.floor(remaining / 60)).padStart(1, "0");
+            var secs = String(Math.floor(remaining % 60)).padStart(2, "0");
+
+            if (ringText) {
+                ringText.textContent = mins + ":" + secs;
+            }
+            if (ringFill) {
+                ringFill.style.strokeDashoffset = CIRCUM * (1 - remaining / WINDOW_SECS);
+                if (remaining <= 60) {
+                    ringFill.classList.add("urgent");
+                } else {
+                    ringFill.classList.remove("urgent");
+                }
+            }
+
+            if (remaining <= 0) {
+                clearInterval(countdownTimer);
+                showStatus("⏰ Payment window expired. Click below to check if payment was received.", "timeout");
+                pollPaymentStatus();
+            }
+        }
+
+        function postAction(action, extra) {
+            extra = extra || {};
+            var bodyParts = [];
+            bodyParts.push("action=" + encodeURIComponent(action));
+            Object.keys(extra).forEach(function(key) {
+                bodyParts.push(encodeURIComponent(key) + "=" + encodeURIComponent(extra[key]));
+            });
+            var body = bodyParts.join("&");
+
+            return fetch("payment.php?table_id=" + encodeURIComponent(TABLE_ID), {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                body: body
+            }).then(function(res) {
+                return res.json();
+            });
+        }
+
+        function pollPaymentStatus() {
+            if (!activeReference) {
+                return;
+            }
+
+            postAction("check_payment", {
+                reference: activeReference
+            }).then(function(result) {
+                if (!result.ok) {
+                    showStatus("⚠️ " + (result.message || "Could not verify payment."), "error");
+                    return;
+                }
+
+                if (result.completed) {
+                    clearInterval(pollTimer);
+                    clearInterval(countdownTimer);
+                    showStatus("✅ Payment confirmed! Redirecting…", "success");
+                    setTimeout(function() {
+                        window.location.href = result.redirect;
+                    }, 1200);
+                    return;
+                }
+
+                if (result.failed || result.timed_out) {
+                    clearInterval(pollTimer);
+                    clearInterval(countdownTimer);
+                    showStatus("❌ " + (result.message || "Payment not completed."), "error");
+                    setTimeout(function() {
+                        window.location.href = result.redirect;
+                    }, 2500);
+                    return;
+                }
+            }).catch(function() {
+                showStatus("⚠️ Connection issue. Will retry automatically.", "error");
+            });
+        }
+
+        function createPaymentRequest() {
+            var opt = planSelect.options[planSelect.selectedIndex];
+            var price = opt ? opt.getAttribute('data-price') : null;
+            var planId = planSelect ? planSelect.value : '';
+
+            clearInterval(pollTimer);
+            clearInterval(countdownTimer);
+            activeReference = '';
+            windowStart = null;
+
+            if (paymentBox) paymentBox.style.display = 'none';
+            if (statusBox) statusBox.style.display = 'none';
+            if (paymentActions) paymentActions.style.display = 'none';
+            if (paidConfirm) paidConfirm.style.display = 'none';
+            if (previewPlan) previewPlan.textContent = '—';
+            if (previewStatus) previewStatus.textContent = 'Select plan';
+            if (!price || !planId) {
+                return;
+            }
+
+            if (previewPlan && opt) previewPlan.textContent = opt.textContent.trim();
+            if (priceDisplay) priceDisplay.textContent = '₹' + parseFloat(price).toLocaleString('en-IN');
+
+            showStatus('Creating payment request…', 'waiting');
+            if (paymentBox) paymentBox.style.display = 'block';
+            if (paymentActions) paymentActions.style.display = 'flex';
+
+            postAction('init_payment', {
+                plan_id: planId
+            }).then(function(result) {
+                if (!result.ok) {
+                    if (paymentBox) paymentBox.style.display = 'none';
+                    showStatus('❌ ' + (result.message || 'Could not start payment.'), 'error');
+                    return;
+                }
+
+                activeReference = result.reference;
+                windowStart = Date.now();
+
+                if (dynamicQrImg) {
+                    dynamicQrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' +
+                        encodeURIComponent(result.upi_url);
+                }
+
+                if (rzpLinkBtn) {
+                    rzpLinkBtn.href = result.rzp_link;
+                }
+
+                if (ringFill) {
+                    ringFill.style.strokeDashoffset = 0;
+                    ringFill.classList.remove('urgent');
+                }
+                if (ringText) {
+                    ringText.textContent = '5:00';
+                }
+                countdownTimer = setInterval(updateCountdown, 1000);
+
+                if (paidConfirm) {
+                    paidConfirm.style.display = 'block';
+                }
+
+                showStatus(
+                    'Scan the QR above or click the Razorpay link to pay. After paying, click "I\'ve Paid".',
+                    'waiting');
+                if (previewStatus) previewStatus.textContent = '⏳ Awaiting payment';
+
+                pollTimer = setInterval(pollPaymentStatus, POLL_MS);
+            }).catch(function() {
+                if (paymentBox) paymentBox.style.display = 'none';
+                showStatus('❌ Could not create payment request. Please try again.', 'error');
+            });
+        }
+
+        if (planSelect) {
+            planSelect.addEventListener('change', createPaymentRequest);
+        }
+
+        if (iPaidBtn) {
+            iPaidBtn.addEventListener('click', function() {
+                iPaidBtn.disabled = true;
+                iPaidBtn.textContent = 'Checking…';
+                showStatus('Checking payment with server…', 'waiting');
+                pollPaymentStatus();
+                setTimeout(function() {
+                    if (iPaidBtn && iPaidBtn.disabled) {
+                        iPaidBtn.disabled = false;
+                        iPaidBtn.textContent = '✅ I\'ve Paid — Confirm My Booking';
+                    }
+                }, 4000);
+            });
+        }
+
+        if (checkPaymentBtn) {
+            checkPaymentBtn.addEventListener('click', function() {
+                showStatus('Checking payment status…', 'waiting');
+                pollPaymentStatus();
+            });
+        }
+        </script>
+    </body>
+
+</html>

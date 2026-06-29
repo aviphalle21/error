@@ -1,0 +1,91 @@
+[27-Jun-2026 19:46:36 Europe/Berlin] PHP Fatal error:  Uncaught Error: Undefined constant "PAYMENT_POLL_SECONDS" in C:\xampp1\htdocs\aa\USER\payment.php:618
+Stack trace:
+#0 {main}
+  thrown in C:\xampp1\htdocs\aa\USER\payment.php on line 618
+[27-Jun-2026 20:03:41 Europe/Berlin] PHP Warning:  Undefined array key "payment_date" in C:\xampp1\htdocs\aa\USER\payment.php on line 62
+[27-Jun-2026 20:03:41 Europe/Berlin] PHP Deprecated:  strtotime(): Passing null to parameter #1 ($datetime) of type string is deprecated in C:\xampp1\htdocs\aa\USER\payment.php on line 62
+[27-Jun-2026 20:16:27 Europe/Berlin] PHP Warning:  Undefined array key "payment_date" in C:\xampp1\htdocs\aa\USER\payment.php on line 62
+[27-Jun-2026 20:16:27 Europe/Berlin] PHP Deprecated:  strtotime(): Passing null to parameter #1 ($datetime) of type string is deprecated in C:\xampp1\htdocs\aa\USER\payment.php on line 62
+[27-Jun-2026 20:21:28 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[27-Jun-2026 20:21:30 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[27-Jun-2026 20:21:31 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[27-Jun-2026 20:21:31 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[27-Jun-2026 20:21:31 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[27-Jun-2026 20:21:31 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[27-Jun-2026 20:21:32 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[27-Jun-2026 20:21:32 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[27-Jun-2026 20:21:32 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[27-Jun-2026 20:21:32 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[27-Jun-2026 20:21:33 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[27-Jun-2026 20:21:34 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[27-Jun-2026 20:21:34 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[27-Jun-2026 20:21:35 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 08:59:48 Europe/Berlin] Admin Database connection failed: SQLSTATE[HY000] [2002] php_network_getaddresses: getaddrinfo for sql113.infinityfree.com failed: No such host is known. 
+[28-Jun-2026 08:59:48 Europe/Berlin] PHP Fatal error:  Uncaught Error: Class "Security" not found in C:\xampp1\htdocs\saraswatiweb\pratik2002\index.php:72
+Stack trace:
+#0 {main}
+  thrown in C:\xampp1\htdocs\saraswatiweb\pratik2002\index.php on line 72
+[28-Jun-2026 09:02:22 Europe/Berlin] Admin Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library_management'
+[28-Jun-2026 09:03:54 Europe/Berlin] PHP Fatal error:  Uncaught Error: Class "Logger" not found in C:\xampp1\htdocs\saraswatiweb\pratik2002\index.php:33
+Stack trace:
+#0 {main}
+  thrown in C:\xampp1\htdocs\saraswatiweb\pratik2002\index.php on line 33
+[28-Jun-2026 09:06:49 Europe/Berlin] PHP Fatal error:  Uncaught Error: Class "Logger" not found in C:\xampp1\htdocs\saraswatiweb\pratik2002\index.php:33
+Stack trace:
+#0 {main}
+  thrown in C:\xampp1\htdocs\saraswatiweb\pratik2002\index.php on line 33
+[28-Jun-2026 09:06:56 Europe/Berlin] PHP Fatal error:  Uncaught Error: Class "Logger" not found in C:\xampp1\htdocs\saraswatiweb\pratik2002\index.php:33
+Stack trace:
+#0 {main}
+  thrown in C:\xampp1\htdocs\saraswatiweb\pratik2002\index.php on line 33
+[28-Jun-2026 12:51:10 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 12:51:18 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 12:52:23 Europe/Berlin] Admin Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 12:52:27 Europe/Berlin] Admin Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 12:52:46 Europe/Berlin] Admin Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 12:52:46 Europe/Berlin] PHP Warning:  Undefined variable $pdo in C:\xampp1\htdocs\saraswatiweb\pratik2002\index.php on line 11
+[28-Jun-2026 12:52:46 Europe/Berlin] PHP Fatal error:  Uncaught Error: Call to a member function prepare() on null in C:\xampp1\htdocs\saraswatiweb\pratik2002\index.php:11
+Stack trace:
+#0 {main}
+  thrown in C:\xampp1\htdocs\saraswatiweb\pratik2002\index.php on line 11
+[28-Jun-2026 12:52:48 Europe/Berlin] Admin Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 13:02:16 Europe/Berlin] Admin Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 13:02:29 Europe/Berlin] Admin Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 13:02:54 Europe/Berlin] Admin Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 13:02:55 Europe/Berlin] Admin Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 13:03:25 Europe/Berlin] Admin Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 13:03:26 Europe/Berlin] Admin Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 13:03:26 Europe/Berlin] Admin Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 15:14:02 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 15:51:08 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 15:51:09 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 15:51:09 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 15:51:17 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 15:51:18 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 15:51:18 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 15:51:36 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 15:51:37 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 15:51:37 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 15:51:37 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 15:54:35 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[28-Jun-2026 16:07:11 Europe/Berlin] PHP Fatal error:  Uncaught Error: Undefined constant "PHONEPE_MERCHANT_ID" in C:\xampp1\htdocs\saraswatiweb\USER\payment.php:250
+Stack trace:
+#0 {main}
+  thrown in C:\xampp1\htdocs\saraswatiweb\USER\payment.php on line 250
+[28-Jun-2026 16:08:31 Europe/Berlin] PHP Fatal error:  Uncaught Error: Undefined constant "PHONEPE_MERCHANT_ID" in C:\xampp1\htdocs\saraswatiweb\USER\payment.php:250
+Stack trace:
+#0 {main}
+  thrown in C:\xampp1\htdocs\saraswatiweb\USER\payment.php on line 250
+[28-Jun-2026 16:08:36 Europe/Berlin] PHP Fatal error:  Uncaught Error: Undefined constant "PHONEPE_MERCHANT_ID" in C:\xampp1\htdocs\saraswatiweb\USER\payment.php:250
+Stack trace:
+#0 {main}
+  thrown in C:\xampp1\htdocs\saraswatiweb\USER\payment.php on line 250
+[28-Jun-2026 16:09:38 Europe/Berlin] PHP Fatal error:  Uncaught Error: Undefined constant "PHONEPE_MERCHANT_ID" in C:\xampp1\htdocs\saraswatiweb\USER\payment.php:250
+Stack trace:
+#0 {main}
+  thrown in C:\xampp1\htdocs\saraswatiweb\USER\payment.php on line 250
+[29-Jun-2026 03:27:07 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[29-Jun-2026 03:45:01 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[29-Jun-2026 03:57:35 Europe/Berlin] Database connection failed: SQLSTATE[HY000] [1049] Unknown database 'library'
+[29-Jun-2026 04:39:09 Europe/Berlin] PHP Warning:  Undefined variable $generatedId in C:\xampp1\htdocs\saraswatiweb\USER\register.php on line 108
+[29-Jun-2026 04:39:26 Europe/Berlin] PHP Warning:  Undefined variable $generatedId in C:\xampp1\htdocs\saraswatiweb\USER\register.php on line 108
