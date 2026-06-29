@@ -22,10 +22,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ];
     
     try {
+        if (!$pdo instanceof PDO) {
+            throw new Exception('Database connection is not available. Please complete database setup first.');
+        }
         $pdo->beginTransaction();
-        $stmt = $pdo->prepare("UPDATE system_settings SET setting_value = ? WHERE setting_key = ?");
+        $stmt = $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
         foreach ($keys as $k => $v) {
-            $stmt->execute([$v, $k]);
+            $stmt->execute([$k, $v]);
         }
         $pdo->commit();
         
@@ -35,7 +38,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header("Location: ../pratik2002/index.php");
         exit;
     } catch (Exception $e) {
-        $pdo->rollBack();
+        if ($pdo instanceof PDO && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         $error = "Failed to save email settings: " . $e->getMessage();
     }
 }

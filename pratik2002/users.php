@@ -32,7 +32,7 @@ $query = "
         COALESCE(b.booking_status, 'None') as booking_status
     FROM users u
     LEFT JOIN library_tables t ON u.user_id = t.current_user_id
-    LEFT JOIN bookings b ON u.user_id = b.user_id AND b.booking_status = 'Active'
+    LEFT JOIN bookings b ON u.user_id = b.user_id AND b.booking_status = 'ACTIVE'
     $searchCondition
     GROUP BY u.user_id
     ORDER BY u.registration_date DESC
@@ -112,7 +112,7 @@ $showBackButton = true;
                                 <?php endif; ?>
                             </td>
                             <td data-label="Booking Status">
-                                <?php if ($user['booking_status'] === 'Active'): ?>
+                                <?php if ($user['booking_status'] === 'ACTIVE'): ?>
                                     <span class="badge badge-active">Active</span>
                                 <?php else: ?>
                                     <span class="badge badge-pending"><?= htmlspecialchars($user['booking_status']) ?></span>

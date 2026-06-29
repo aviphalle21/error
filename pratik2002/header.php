@@ -5,7 +5,7 @@ $expiringCheckStmt = $pdo->query("
     FROM user_subscriptions us
     JOIN users u ON us.user_id = u.user_id
     JOIN library_tables t ON us.table_id = t.table_id
-    WHERE us.subscription_status = 'Active' 
+    WHERE us.subscription_status = 'ACTIVE'
     AND us.expiry_date BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 3 DAY)
     AND us.subscription_id NOT IN (
         SELECT related_id FROM system_notifications WHERE type = 'expiry'
@@ -149,7 +149,7 @@ $unreadCount = $unreadCountStmt->fetchColumn();
                     <input type="text" name="search" placeholder="Search tables, members, payments..." style="border: none; outline: none; background: transparent; width: 100%;">
                 </form>
             </div>
-            
+
             <div class="topbar-actions">
                 <div class="date-widget">
                     <span class="calendar-icon" onclick="document.getElementById('hiddenDatePicker').showPicker()">📅</span>
@@ -159,7 +159,7 @@ $unreadCount = $unreadCountStmt->fetchColumn();
                         <div id="liveTime" class="time-text"></div>
                     </div>
                 </div>
-                
+
                 <div class="notification-wrapper" onclick="openNavDrawer()">
                     <div class="bell-icon">
                         🔔
@@ -194,7 +194,7 @@ $unreadCount = $unreadCountStmt->fetchColumn();
         </div>
         <button class="close-drawer" onclick="closeNavDrawer()">✕</button>
     </div>
-    
+
     <div class="drawer-actions">
         <span style="font-size:0.85rem; color:#6b7280; font-weight:600;"><span id="unreadCountText"><?= $unreadCount ?></span> Unread</span>
         <?php if (count($notifications) > 0): ?>
@@ -279,10 +279,10 @@ function toggleMobileNav() {
 // Live Date and Time
 function updateDateTime() {
     const now = new Date();
-    
+
     const dateOpts = { day: '2-digit', month: 'short', year: 'numeric' };
     document.getElementById('liveDate').innerText = now.toLocaleDateString('en-GB', dateOpts);
-    
+
     const timeOpts = { hour: '2-digit', minute: '2-digit', hour12: true };
     document.getElementById('liveTime').innerText = now.toLocaleTimeString('en-US', timeOpts);
 }
