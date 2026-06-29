@@ -7,6 +7,7 @@ require_once '../includes/Logger.php';
 $alertMessage = '';
 $alertType = '';
 $accountCreated = false;
+$generatedId = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Validate CSRF
@@ -66,6 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $notifStmt->execute([$notifMsg]);
 
                 $accountCreated = true;
+                $generatedId = $newUniqueId;
                 $alertMessage = 'Account created successfully! You can now login with your email and password.';
                 $alertType = 'alert-success';
             } catch (PDOException $e) {
@@ -105,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="alert <?= $alertType ?>"><?= htmlspecialchars($alertMessage) ?></div>
         <?php endif; ?>
 
-        <?php if ($generatedId): ?>
+        <?php if ($accountCreated && $generatedId): ?>
             <div class="generated-id-box">
                 <p>Your Unique Login ID is:</p>
                 <h2><?= htmlspecialchars($generatedId) ?></h2>
