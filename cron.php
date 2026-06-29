@@ -24,9 +24,9 @@ try {
         // Release Table if it's not marked as maintenance and the current user is this user
         $updTable = $pdo->prepare("UPDATE library_tables SET status = 'Available', current_user_id = NULL WHERE table_id = ? AND current_user_id = ? AND status != 'Maintenance'");
         $updTable->execute([$sub['table_id'], $sub['user_id']]);
-
+        
         Logger::logAudit($pdo, 'System Cron', 'Subscription Expired', $sub['user_id'], null);
-
+        
         // Notify admin
         $notifStmt = $pdo->prepare("INSERT INTO system_notifications (type, title, message) VALUES ('General', 'Subscription Expired', ?)");
         $notifStmt->execute(["Subscription ID " . $sub['subscription_id'] . " expired. Table T-" . $sub['table_id'] . " released."]);
@@ -39,3 +39,4 @@ try {
     error_log("Cron Error: " . $e->getMessage());
     echo "Cron Error: " . $e->getMessage() . "\n";
 }
+?>

@@ -20,8 +20,7 @@ $prevEndDate = date('Y-m-d', strtotime($startDate . ' -1 day'));
 $prevStartDate = date('Y-m-d', strtotime($prevEndDate . " -$daysDiff days"));
 
 // Helper function to calculate percentage change
-function getTrendHtml($current, $previous)
-{
+function getTrendHtml($current, $previous) {
     if ($previous == 0) {
         if ($current > 0) return "<span class='trend-up'>▲ 100%</span>";
         return "<span class='trend-neutral'>- 0%</span>";
@@ -79,7 +78,7 @@ $yearlyDataStmt = $pdo->query("
 ");
 $yearlyRaw = $yearlyDataStmt->fetchAll();
 $monthlyRevenueArray = array_fill(1, 12, 0);
-foreach ($yearlyRaw as $row) {
+foreach($yearlyRaw as $row) {
     $monthlyRevenueArray[$row['month_num']] = $row['total'];
 }
 $monthlyRevenueJson = json_encode(array_values($monthlyRevenueArray));
@@ -146,24 +145,22 @@ $recentTrans = $recentTransStmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reports & Analytics - library Management</title>
+    <title>Reports & Analytics - Library Management</title>
     <link rel="stylesheet" href="Dashboard.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<?php
+<?php 
 $pageTitle = 'Reports & Analytics';
 $showBackButton = true;
 ?>
-
 <body>
     <?php include 'header.php'; ?>
 
     <div class="report-container">
-
+        
         <!-- Date Filter Form -->
         <div class="filter-section">
             <form method="GET" action="reports.php" class="date-filter-form">
@@ -208,14 +205,14 @@ $showBackButton = true;
         <!-- BOX 1: GRAPHICAL ANALYSIS -->
         <div class="report-box">
             <h2>Graphical Analysis</h2>
-
+            
             <div class="charts-grid" style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));">
                 <!-- Bar Chart: Period Comparison -->
                 <div class="chart-wrapper">
                     <h4>Revenue Comparison (Selected vs Previous Period)</h4>
                     <canvas id="periodCompareChart" height="200"></canvas>
                 </div>
-
+                
                 <!-- Line Chart: Yearly Trend -->
                 <div class="chart-wrapper">
                     <h4>Revenue Trend (Current Year)</h4>
@@ -224,7 +221,7 @@ $showBackButton = true;
             </div>
 
             <h3 style="text-align: center; margin: 30px 0 20px 0; color: var(--navy-blue);">Distribution Breakdowns (Selected Period)</h3>
-
+            
             <!-- 4 Donut Charts -->
             <div class="charts-grid">
                 <div class="chart-wrapper">
@@ -245,7 +242,7 @@ $showBackButton = true;
                 </div>
             </div>
         </div>
-
+        
         <!-- ACTIONABLE TABLES -->
         <div class="tables-grid">
             <div class="report-box actionable-table-container">
@@ -264,18 +261,16 @@ $showBackButton = true;
                         </thead>
                         <tbody>
                             <?php if (count($expiringSubs) > 0): ?>
-                                <?php foreach ($expiringSubs as $sub): ?>
-                                    <tr>
-                                        <td data-label="User"><?= htmlspecialchars($sub['full_name']) ?></td>
-                                        <td data-label="Phone"><?= htmlspecialchars($sub['phone']) ?></td>
-                                        <td data-label="Table">T-<?= htmlspecialchars($sub['table_number']) ?></td>
-                                        <td data-label="Expiry Date" class="expiring-soon"><?= date('d M Y', strtotime($sub['expiry_date'])) ?></td>
-                                    </tr>
+                                <?php foreach($expiringSubs as $sub): ?>
+                                <tr>
+                                    <td data-label="User"><?= htmlspecialchars($sub['full_name']) ?></td>
+                                    <td data-label="Phone"><?= htmlspecialchars($sub['phone']) ?></td>
+                                    <td data-label="Table">T-<?= htmlspecialchars($sub['table_number']) ?></td>
+                                    <td data-label="Expiry Date" class="expiring-soon"><?= date('d M Y', strtotime($sub['expiry_date'])) ?></td>
+                                </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <tr>
-                                    <td colspan="4" class="text-center">No subscriptions expiring in the next 7 days.</td>
-                                </tr>
+                                <tr><td colspan="4" class="text-center">No subscriptions expiring in the next 7 days.</td></tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
@@ -298,22 +293,20 @@ $showBackButton = true;
                         </thead>
                         <tbody>
                             <?php if (count($recentTrans) > 0): ?>
-                                <?php foreach ($recentTrans as $trans): ?>
-                                    <tr>
-                                        <td data-label="User"><?= htmlspecialchars($trans['full_name']) ?></td>
-                                        <td data-label="Amount">₹<?= number_format($trans['amount'], 2) ?></td>
-                                        <td data-label="Status">
-                                            <span class="status-badge status-<?= strtolower($trans['payment_status']) ?>">
-                                                <?= htmlspecialchars($trans['payment_status']) ?>
-                                            </span>
-                                        </td>
-                                        <td data-label="Date"><?= date('d M Y, h:i A', strtotime($trans['payment_date'])) ?></td>
-                                    </tr>
+                                <?php foreach($recentTrans as $trans): ?>
+                                <tr>
+                                    <td data-label="User"><?= htmlspecialchars($trans['full_name']) ?></td>
+                                    <td data-label="Amount">₹<?= number_format($trans['amount'], 2) ?></td>
+                                    <td data-label="Status">
+                                        <span class="status-badge status-<?= strtolower($trans['payment_status']) ?>">
+                                            <?= htmlspecialchars($trans['payment_status']) ?>
+                                        </span>
+                                    </td>
+                                    <td data-label="Date"><?= date('d M Y, h:i A', strtotime($trans['payment_date'])) ?></td>
+                                </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <tr>
-                                    <td colspan="4" class="text-center">No recent transactions.</td>
-                                </tr>
+                                <tr><td colspan="4" class="text-center">No recent transactions.</td></tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
@@ -332,7 +325,7 @@ $showBackButton = true;
         const gray = '#9ca3af';
         const green = '#10b981';
         const orange = '#f59e0b';
-
+        
         const donutColors = [navy, crimson, gray, green, orange, navyLight];
 
         // 1. Period Comparison Bar Chart
@@ -348,10 +341,7 @@ $showBackButton = true;
                     borderRadius: 4
                 }]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false
-            }
+            options: { responsive: true, maintainAspectRatio: false }
         });
 
         // 2. Yearly Trend Line Chart
@@ -369,15 +359,12 @@ $showBackButton = true;
                     tension: 0.3
                 }]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false
-            }
+            options: { responsive: true, maintainAspectRatio: false }
         });
 
         // 3. Donut Charts Function
         function createDonut(ctxId, labels, dataVals) {
-            if (dataVals.length === 0) {
+            if(dataVals.length === 0) {
                 // Handle empty data
                 labels = ['No Data'];
                 dataVals = [1];
@@ -393,14 +380,10 @@ $showBackButton = true;
                         hoverOffset: 4
                     }]
                 },
-                options: {
+                options: { 
                     responsive: true,
                     cutout: '65%',
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
-                    }
+                    plugins: { legend: { position: 'bottom' } }
                 }
             });
         }
@@ -411,4 +394,4 @@ $showBackButton = true;
         createDonut('donutPayment', <?= $paymentLabels ?>, <?= $paymentValues ?>);
         createDonut('donutUser', <?= $userLabels ?>, <?= $userValues ?>);
     </script>
-    <?php include 'footer.php'; ?>
+<?php include 'footer.php'; ?>

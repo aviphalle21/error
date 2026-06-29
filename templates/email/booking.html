@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Booking Confirmation</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header { background-color: #0284c7; padding: 20px; text-align: center; color: white; }
+        .content { padding: 30px; color: #374151; line-height: 1.6; }
+        .details-box { background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        .details-box p { margin: 5px 0; }
+        .footer { background-color: #f9fafb; padding: 20px; text-align: center; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 style="margin:0;">Table Booking Confirmed</h1>
+        </div>
+        <div class="content">
+            <p>Dear <strong>{{userName}}</strong>,</p>
+            <p>Your table booking at Saraswati Abhyasika has been successfully confirmed. Please find the details below:</p>
+            
+            <div class="details-box">
+                <p><strong>Booking ID:</strong> {{bookingId}}</p>
+                <p><strong>Table Number:</strong> {{tableNumber}}</p>
+                <p><strong>Date:</strong> {{date}}</p>
+                <p><strong>Time:</strong> {{time}}</p>
+            </div>
+            
+            <p>Thank you for choosing Saraswati Abhyasika for your studies. We look forward to seeing you!</p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2026 Saraswati Abhyasika.</p>
+        </div>
+    </div>
+</body>
+</html>

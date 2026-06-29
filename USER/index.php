@@ -1,12 +1,10 @@
 <?php
 // User/index.php
-require_once __DIR__ . '/config.php';
-require_once dirname(__DIR__) . '/includes/Security.php';
-require_once dirname(__DIR__) . '/includes/Logger.php';
+require_once 'config.php';
+require_once '../includes/Security.php';
+require_once '../includes/Logger.php';
 
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-// If already logged in
+// If already logged in, redirect
 if (isset($_SESSION['user_id'])) {
     header("Location: dashboard.php");
     exit;
@@ -27,251 +25,143 @@ if (isset($_GET['expired']) && $_GET['expired'] == 1) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
-    // CSRF Validation
-    if (
-        !isset($_POST['csrf_token']) ||
-        !Security::validateCSRFToken($_POST['csrf_token'])
-    ) {
-        $alertMessage = 'Invalid request. Please try again.';
+    // Validate CSRF
+    if (!isset($_POST['csrf_token']) || !Security::validateCSRFToken($_POST['csrf_token'])) {
+        $alertMessage = 'Invalid request (CSRF check failed). Please try again.';
         $alertType = 'alert-error';
     } else {
+        $uniqueId = trim($_POST['unique_id']);
+        $password = $_POST['password'];
 
-        $email = trim($_POST['email'] ?? '');
-        $password = $_POST['password'] ?? '';
-
-        if (empty($email) || empty($password)) {
-
-            $alertMessage = 'Please enter Email and Password.';
+        if (empty($uniqueId) || empty($password)) {
+            $alertMessage = 'Please enter both Unique ID and Password.';
             $alertType = 'alert-error';
         } else {
-
             try {
-
-                $stmt = $pdo->prepare("
-                    SELECT
-                        user_id,
-                        unique_user_id,
-                        full_name,
-                        email,
-                        password,
-                        account_status,
-                        failed_login_attempts,
-                        locked_until
-                    FROM users
-                    WHERE email = ?
-                    LIMIT 1
-                ");
-
-                $stmt->execute([$email]);
-                $user = $stmt->fetch(PDO::FETCH_ASSOC);
+                $stmt = $pdo->prepare("SELECT user_id, unique_user_id, full_name, password, account_status, failed_login_attempts, locked_until FROM users WHERE unique_user_id = ?");
+                $stmt->execute([$uniqueId]);
+                $user = $stmt->fetch();
 
                 if ($user) {
-
-                    // Check lock status
-                    if (
-                        !empty($user['locked_until']) &&
-                        strtotime($user['locked_until']) > time()
-                    ) {
-
-                        $alertMessage = 'Account locked due to multiple failed login attempts. Please try again later.';
+                    // Check if account is locked
+                    if ($user['locked_until'] && strtotime($user['locked_until']) > time()) {
+                        $alertMessage = 'Account locked due to multiple failed attempts. Try again later.';
                         $alertType = 'alert-error';
-
-                        Logger::logAudit(
-                            $pdo,
-                            'Login',
-                            'Locked Account Attempt',
-                            $user['user_id'],
-                            null
-                        );
+                        Logger::logAudit($pdo, 'Login', 'Locked', $user['user_id'], null);
                     } else {
-
                         if (password_verify($password, $user['password'])) {
-
                             if ($user['account_status'] === 'Active') {
-
                                 // Reset failed attempts
-                                $resetStmt = $pdo->prepare("
-                                    UPDATE users
-                                    SET
-                                        failed_login_attempts = 0,
-                                        locked_until = NULL,
-                                        last_login = NOW()
-                                    WHERE user_id = ?
-                                ");
+                                $pdo->prepare("UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login = NOW() WHERE user_id = ?")->execute([$user['user_id']]);
 
-                                $resetStmt->execute([$user['user_id']]);
-
-                                // Login Log
-                                $ipAddress = $_SERVER['REMOTE_ADDR'] ?? '';
+                                // Insert log
+                                $ipAddress = $_SERVER['REMOTE_ADDR'];
                                 $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
-
                                 $deviceInfo = Security::parseUserAgent($userAgent);
+                                
+                                $logStmt = $pdo->prepare("INSERT INTO user_login_logs (user_id, ip_address, browser, os, device_type) VALUES (?, ?, ?, ?, ?)");
+                                $logStmt->execute([$user['user_id'], $ipAddress, $deviceInfo['browser'], $deviceInfo['os'], $deviceInfo['device']]);
 
-                                $logStmt = $pdo->prepare("
-                                    INSERT INTO user_login_logs
-                                    (
-                                        user_id,
-                                        ip_address,
-                                        browser,
-                                        os,
-                                        device_type
-                                    )
-                                    VALUES (?, ?, ?, ?, ?)
-                                ");
-
-                                $logStmt->execute([
-                                    $user['user_id'],
-                                    $ipAddress,
-                                    $deviceInfo['browser'],
-                                    $deviceInfo['os'],
-                                    $deviceInfo['device']
-                                ]);
-
-                                // System Notification
-                                $notifStmt = $pdo->prepare("
-                                    INSERT INTO system_notifications
-                                    (type, title, message)
-                                    VALUES ('login', 'User Login', ?)
-                                ");
-
-                                $notifMsg =
-                                    $user['full_name'] .
-                                    ' (' . $user['email'] . ')' .
-                                    ' logged in from ' .
-                                    $deviceInfo['browser'] .
-                                    ' on ' .
-                                    $deviceInfo['os'];
-
+                                // Insert notification
+                                $notifStmt = $pdo->prepare("INSERT INTO system_notifications (type, title, message) VALUES ('login', 'User Login', ?)");
+                                $notifMsg = $user['full_name'] . " (" . $user['unique_user_id'] . ") logged in from " . $deviceInfo['browser'] . " on " . $deviceInfo['os'] . ".";
                                 $notifStmt->execute([$notifMsg]);
 
-                                Logger::logAudit(
-                                    $pdo,
-                                    'Login',
-                                    'Success',
-                                    $user['user_id'],
-                                    null
-                                );
+                                Logger::logAudit($pdo, 'Login', 'Success', $user['user_id'], null);
 
-                                // Regenerate Session
+                                // Prevent Session Fixation
                                 session_regenerate_id(true);
 
+                                // Success
                                 $_SESSION['user_id'] = $user['user_id'];
                                 $_SESSION['user_name'] = $user['full_name'];
-                                $_SESSION['user_email'] = $user['email'];
                                 $_SESSION['unique_id'] = $user['unique_user_id'];
-
                                 header("Location: dashboard.php");
                                 exit;
                             } else {
-
-                                $alertMessage =
-                                    'Your account is currently ' .
-                                    htmlspecialchars($user['account_status']) .
-                                    '. Please contact support.';
-
+                                $alertMessage = 'Your account is currently ' . htmlspecialchars($user['account_status']) . '. Please contact support.';
                                 $alertType = 'alert-error';
-
-                                Logger::logAudit(
-                                    $pdo,
-                                    'Login',
-                                    'Failed (Account Status)',
-                                    $user['user_id'],
-                                    null
-                                );
+                                Logger::logAudit($pdo, 'Login', 'Failed (Status: '.$user['account_status'].')', $user['user_id'], null);
                             }
                         } else {
-
-                            $fails = (int)$user['failed_login_attempts'] + 1;
+                            // Failed password
+                            $fails = $user['failed_login_attempts'] + 1;
                             $lockedUntil = null;
-
                             if ($fails >= 5) {
-
-                                $lockedUntil = date(
-                                    'Y-m-d H:i:s',
-                                    strtotime('+15 minutes')
-                                );
-
-                                $alertMessage =
-                                    'Account locked for 15 minutes due to multiple failed attempts.';
-
-                                $notifStmt = $pdo->prepare("
-                                    INSERT INTO system_notifications
-                                    (type, title, message)
-                                    VALUES
-                                    (
-                                        'login',
-                                        'Security Alert: Account Locked',
-                                        ?
-                                    )
-                                ");
-
-                                $notifStmt->execute([
-                                    'Multiple failed login attempts for ' .
-                                        $user['email'] .
-                                        '. Account temporarily locked.'
-                                ]);
-
-                                Logger::logAudit(
-                                    $pdo,
-                                    'Login',
-                                    'Account Locked',
-                                    $user['user_id'],
-                                    null
-                                );
+                                $lockedUntil = date('Y-m-d H:i:s', strtotime('+15 minutes'));
+                                $alertMessage = 'Account locked for 15 minutes due to multiple failed attempts.';
+                                Logger::logAudit($pdo, 'Login', 'Account Locked', $user['user_id'], null);
+                                
+                                // Insert system notification for multiple failed attempts
+                                $notifStmt = $pdo->prepare("INSERT INTO system_notifications (type, title, message) VALUES ('login', 'Security Alert: Account Locked', ?)");
+                                $notifMsg = "Multiple failed login attempts for user " . $user['unique_user_id'] . ". Account temporarily locked.";
+                                $notifStmt->execute([$notifMsg]);
                             } else {
-
-                                $alertMessage =
-                                    'Invalid Email or Password. Attempts left: ' .
-                                    (5 - $fails);
-
-                                Logger::logAudit(
-                                    $pdo,
-                                    'Login',
-                                    'Failed Password',
-                                    $user['user_id'],
-                                    null
-                                );
+                                $alertMessage = 'Invalid Unique ID or Password. Attempts left: ' . (5 - $fails);
+                                Logger::logAudit($pdo, 'Login', 'Failed Password', $user['user_id'], null);
                             }
-
-                            $updateStmt = $pdo->prepare("
-                                UPDATE users
-                                SET
-                                    failed_login_attempts = ?,
-                                    locked_until = ?
-                                WHERE user_id = ?
-                            ");
-
-                            $updateStmt->execute([
-                                $fails,
-                                $lockedUntil,
-                                $user['user_id']
-                            ]);
-
+                            
+                            $pdo->prepare("UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE user_id = ?")->execute([$fails, $lockedUntil, $user['user_id']]);
                             $alertType = 'alert-error';
                         }
                     }
                 } else {
-
-                    $alertMessage = 'Invalid Email or Password.';
+                    $alertMessage = 'Invalid Unique ID or Password.';
                     $alertType = 'alert-error';
-
-                    Logger::logAudit(
-                        $pdo,
-                        'Login',
-                        'Failed User Not Found (' . $email . ')',
-                        null,
-                        null
-                    );
+                    Logger::logAudit($pdo, 'Login', 'Failed User Not Found (ID: '.$uniqueId.')', null, null);
                 }
             } catch (PDOException $e) {
-
-                $alertMessage = 'System error occurred. Please try again later.';
+                $alertMessage = 'A system error occurred. Please try again later.';
                 $alertType = 'alert-error';
-
-                // Uncomment for debugging
-                // die($e->getMessage());
             }
         }
     }
 }
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In - User Portal</title>
+    <link rel="stylesheet" href="style.css?v=<?= time() ?>">
+    <script src="theme.js"></script>
+</head>
+<body>
+
+<div class="auth-container">
+    <div class="auth-header">
+        <img src="../IMAGES/SHREE SARASWATI ABHYASIKA LOGO.png" alt="Saraswati Abhyasika Logo" class="auth-logo">
+        <h1>सरस्वती अभ्यासिका</h1>
+        <p>Sign in to your library account</p>
+    </div>
+
+    <?php if ($alertMessage): ?>
+        <div class="alert <?= $alertType ?>"><?= htmlspecialchars($alertMessage) ?></div>
+    <?php endif; ?>
+
+    <form action="index.php" method="POST">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Security::generateCSRFToken()) ?>">
+        <div class="form-group">
+            <label for="unique_id">Unique Login ID</label>
+            <input type="text" id="unique_id" name="unique_id" required placeholder="UNIQUE ID">
+        </div>
+
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required placeholder="PASSWORD">
+            <div style="text-align: right; margin-top: 5px;">
+                <a href="forgot_password.php" style="font-size: 0.85rem; color: var(--primary); text-decoration: none;">Forgot Password?</a>
+            </div>
+        </div>
+
+        <button type="submit" class="btn-primary">Sign In</button>
+    </form>
+
+    <div class="auth-footer">
+        <a href="register.php" class="btn-secondary">Create Account</a>
+    </div>
+</div>
+
+</body>
+</html>

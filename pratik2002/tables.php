@@ -9,11 +9,19 @@ if (!isset($_SESSION['admin_id'])) {
 
 // Handle "Add New Table" action
 if (isset($_POST['add_table'])) {
-    // Get highest current table number
-    $stmt = $pdo->query("SELECT MAX(table_number) as max_num FROM library_tables");
-    $row = $stmt->fetch();
-    $next_number = ($row['max_num'] ?? 0) + 1;
-
+    // Find the lowest available table number (fill gaps first)
+    $stmt = $pdo->query("SELECT table_number FROM library_tables ORDER BY table_number ASC");
+    $existing = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    
+    $next_number = 1;
+    foreach ($existing as $num) {
+        if ($num == $next_number) {
+            $next_number++;
+        } else if ($num > $next_number) {
+            break; // found a gap!
+        }
+    }
+    
     $unique = 'TBL-' . str_pad($next_number, 3, '0', STR_PAD_LEFT);
     $insert = $pdo->prepare("INSERT INTO library_tables (unique_table_id, table_number) VALUES (?, ?)");
     $insert->execute([$unique, $next_number]);
@@ -27,7 +35,7 @@ if (isset($_POST['make_available']) && isset($_POST['table_id'])) {
     $stmt = $pdo->prepare("SELECT status, current_user_id FROM library_tables WHERE table_id = ?");
     $stmt->execute([$table_id]);
     $row = $stmt->fetch();
-
+    
     if ($row && $row['status'] === 'Maintenance' && !empty($row['current_user_id'])) {
         $updateTable = $pdo->prepare("UPDATE library_tables SET status = 'Booked' WHERE table_id = ?");
     } else {
@@ -87,11 +95,10 @@ if (count($tables) == 0) {
 ?>
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tables - library Management</title>
+    <title>Tables - Library Management</title>
     <link rel="stylesheet" href="Dashboard.css">
     <style>
         .btn-action {
@@ -105,30 +112,19 @@ if (count($tables) == 0) {
             font-weight: 600;
             transition: all 0.2s ease;
         }
-
-        .btn-action:hover {
-            background: var(--brand-crimson-dark);
+        .btn-action:hover { 
+            background: var(--brand-crimson-dark); 
             transform: translateY(-1px);
-            box-shadow: 0 2px 4px rgba(153, 27, 27, 0.3);
+            box-shadow: 0 2px 4px rgba(153,27,27,0.3);
         }
-
-        .text-sm {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-        }
-
-        .text-danger {
-            color: #dc2626;
-            font-weight: 600;
-            font-size: 0.85rem;
-        }
+        .text-sm { font-size: 0.85rem; color: var(--text-muted); }
+        .text-danger { color: #dc2626; font-weight: 600; font-size: 0.85rem; }
     </style>
 </head>
-<?php
+<?php 
 $pageTitle = 'Tables Management';
 $showBackButton = true;
 ?>
-
 <body>
     <?php include 'header.php'; ?>
 
@@ -153,58 +149,58 @@ $showBackButton = true;
                 </thead>
                 <tbody>
                     <?php foreach ($tables as $table): ?>
-                        <?php
+                    <?php 
                         $isExpired = false;
                         if ($table['expiry_date'] && strtotime($table['expiry_date']) < strtotime(date('Y-m-d'))) {
                             $isExpired = true;
                         }
-                        ?>
-                        <tr>
-                            <td data-label="Table No."><strong>T-<?= htmlspecialchars($table['table_number']) ?></strong></td>
-                            <td data-label="User Details">
-                                <?php if ($table['full_name']): ?>
-                                    <?= htmlspecialchars($table['full_name']) ?><br>
-                                    <span class="text-sm"><?= htmlspecialchars($table['email']) ?></span>
-                                <?php else: ?>
-                                    <span class="text-sm">No active user</span>
+                    ?>
+                    <tr>
+                        <td data-label="Table No."><strong>T-<?= htmlspecialchars($table['table_number']) ?></strong></td>
+                        <td data-label="User Details">
+                            <?php if ($table['full_name']): ?>
+                                <?= htmlspecialchars($table['full_name']) ?><br>
+                                <span class="text-sm"><?= htmlspecialchars($table['email']) ?></span>
+                            <?php else: ?>
+                                <span class="text-sm">No active user</span>
+                            <?php endif; ?>
+                        </td>
+                        <td data-label="Status">
+                            <?php if ($table['table_status'] === 'Available'): ?>
+                                <span class="badge badge-active">Available</span>
+                            <?php else: ?>
+                                <span class="badge badge-pending"><?= htmlspecialchars($table['table_status']) ?></span>
+                            <?php endif; ?>
+                        </td>
+                        <td data-label="Subscription Plan">
+                            <?php if ($table['table_status'] === 'Booked' && $table['plan_name']): ?>
+                                <strong><?= htmlspecialchars($table['plan_name']) ?></strong><br>
+                                <span class="text-sm">Exp: <?= htmlspecialchars($table['expiry_date']) ?></span>
+                                <?php if($isExpired): ?> <br><span class="text-danger">(Expired)</span> <?php endif; ?>
+                            <?php else: ?>
+                                <span class="text-sm">-</span>
+                            <?php endif; ?>
+                        </td>
+                        <td data-label="Actions">
+                            <form method="POST" style="margin:0; display:flex; gap:6px;">
+                                <input type="hidden" name="table_id" value="<?= $table['table_id'] ?>">
+                                
+                                <?php if ($table['table_status'] !== 'Available'): ?>
+                                    <button type="submit" name="make_available" class="btn-action" title="<?= $table['table_status'] === 'Maintenance' && $table['full_name'] ? 'Restore Booking' : 'Clear & Make Available' ?>" onclick="return confirm('<?= $table['table_status'] === 'Maintenance' && $table['full_name'] ? 'Restore this table back to the user?' : 'Clear the user and make this table available?' ?>');">✔️</button>
                                 <?php endif; ?>
-                            </td>
-                            <td data-label="Status">
-                                <?php if ($table['table_status'] === 'Available'): ?>
-                                    <span class="badge badge-active">Available</span>
-                                <?php else: ?>
-                                    <span class="badge badge-pending"><?= htmlspecialchars($table['table_status']) ?></span>
+                                
+                                <?php if ($table['table_status'] !== 'Maintenance'): ?>
+                                    <button type="submit" name="mark_maintenance" class="btn-action" style="background:#d97706;" title="Mark for Maintenance" onclick="return confirm('Mark table for maintenance? User booking will be preserved.');">🔧</button>
                                 <?php endif; ?>
-                            </td>
-                            <td data-label="Subscription Plan">
-                                <?php if ($table['table_status'] === 'Booked' && $table['plan_name']): ?>
-                                    <strong><?= htmlspecialchars($table['plan_name']) ?></strong><br>
-                                    <span class="text-sm">Exp: <?= htmlspecialchars($table['expiry_date']) ?></span>
-                                    <?php if ($isExpired): ?> <br><span class="text-danger">(Expired)</span> <?php endif; ?>
-                                <?php else: ?>
-                                    <span class="text-sm">-</span>
-                                <?php endif; ?>
-                            </td>
-                            <td data-label="Actions">
-                                <form method="POST" style="margin:0; display:flex; gap:6px;">
-                                    <input type="hidden" name="table_id" value="<?= $table['table_id'] ?>">
-
-                                    <?php if ($table['table_status'] !== 'Available'): ?>
-                                        <button type="submit" name="make_available" class="btn-action" title="<?= $table['table_status'] === 'Maintenance' && $table['full_name'] ? 'Restore Booking' : 'Clear & Make Available' ?>" onclick="return confirm('<?= $table['table_status'] === 'Maintenance' && $table['full_name'] ? 'Restore this table back to the user?' : 'Clear the user and make this table available?' ?>');">✔️</button>
-                                    <?php endif; ?>
-
-                                    <?php if ($table['table_status'] !== 'Maintenance'): ?>
-                                        <button type="submit" name="mark_maintenance" class="btn-action" style="background:#d97706;" title="Mark for Maintenance" onclick="return confirm('Mark table for maintenance? User booking will be preserved.');">🔧</button>
-                                    <?php endif; ?>
-
-                                    <button type="submit" name="delete_table" class="btn-action" style="background:#111827;" title="Delete Table" onclick="return confirm('Are you sure you want to permanently delete this table?');">🗑️</button>
-                                </form>
-                            </td>
-                        </tr>
+                                
+                                <button type="submit" name="delete_table" class="btn-action" style="background:#111827;" title="Delete Table" onclick="return confirm('Are you sure you want to permanently delete this table?');">🗑️</button>
+                            </form>
+                        </td>
+                    </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
     </div>
     </div>
-    <?php include 'footer.php'; ?>
+<?php include 'footer.php'; ?>

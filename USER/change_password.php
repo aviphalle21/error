@@ -3,6 +3,7 @@ require_once 'config.php';
 require_once '../includes/SessionManager.php';
 require_once '../includes/Security.php';
 require_once '../includes/Logger.php';
+require_once '../services/EmailService.php';
 
 SessionManager::startSecureSession();
 
@@ -24,8 +25,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($currentPassword) || empty($newPassword)) {
             $alertMessage = 'Please fill in both fields.';
             $alertType = 'alert-error';
-        } elseif (strlen($newPassword) < 8 || !preg_match("/[A-Z]/", $newPassword) || !preg_match("/[a-z]/", $newPassword) || !preg_match("/[0-9]/", $newPassword) || !preg_match("/[\W_]/", $newPassword)) {
-            $alertMessage = 'New password must be at least 8 characters long, contain an uppercase letter, a lowercase letter, a number, and a special character.';
+        } elseif (!preg_match('/^[0-9]{6}$/', $newPassword)) {
+            $alertMessage = 'New password must be exactly 6 digits.';
             $alertType = 'alert-error';
         } else {
             $stmt = $pdo->prepare("SELECT user_id, email, password, full_name FROM users WHERE user_id = ?");
@@ -42,11 +43,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $updStmt->execute([$hashedOtp, $user['user_id']]);
                 
                 // Send Email
-                $to = $user['email'];
-                $subject = "Change Password OTP - Saraswati Abhyasika";
-                $message = "Hello " . $user['full_name'] . ",\n\nYour OTP to confirm your password change is: " . $otp . "\n\nThis OTP is valid for 5 minutes. If you did not request this, please contact support immediately.";
-                $headers = "From: noreply@saraswatiabhyasika.com\r\nReply-To: noreply@saraswatiabhyasika.com\r\n";
-                @mail($to, $subject, $message, $headers);
+                $mailSent = EmailService::sendOTP($pdo, $user['email'], $user['full_name'], $otp);
+                
+                if ($mailSent === 'DEVELOPMENT_MODE') {
+                    $_SESSION['dev_otp_msg'] = "DEVELOPMENT MODE: Change Password OTP is {$otp}";
+                }
                 
                 // Store pending new password in session temporarily
                 $_SESSION['pending_new_password_hash'] = password_hash($newPassword, PASSWORD_DEFAULT);
@@ -67,8 +68,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Change Password - Saraswati Abhyasika</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Change Password - User Portal</title>
+    <link rel="stylesheet" href="style.css?v=<?= time() ?>">
+    <script src="theme.js"></script>
 </head>
 <body>
 
@@ -86,11 +88,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Security::generateCSRFToken()) ?>">
         <div class="form-group">
             <label>Current Password</label>
-            <input type="password" name="current_password" required>
+            <input type="password" name="current_password" required placeholder="6-digit PIN">
         </div>
         <div class="form-group">
-            <label>New Password</label>
-            <input type="password" name="new_password" required>
+            <label>New Password (6-digit PIN)</label>
+            <input type="password" name="new_password" required pattern="[0-9]{6}" maxlength="6" title="Please enter exactly 6 digits" placeholder="6-digit PIN">
         </div>
         <button type="submit" class="btn-primary">Request Change (Send OTP)</button>
     </form>

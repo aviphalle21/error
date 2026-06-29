@@ -15,8 +15,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email']);
     $phone = trim($_POST['phone']);
     $address = trim($_POST['address']);
-    $password = password_hash('password123', PASSWORD_DEFAULT); // default password
-
+    $password = password_hash('123456', PASSWORD_DEFAULT); // default 6-digit PIN
+    
     // Generate unique ID
     $uniqueStmt = $pdo->query("SELECT MAX(user_id) as max_id FROM users");
     $maxRow = $uniqueStmt->fetch();
@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $insertStmt = $pdo->prepare("INSERT INTO users (unique_user_id, full_name, email, phone, address, password) VALUES (?, ?, ?, ?, ?, ?)");
         $insertStmt->execute([$uniqueUserId, $fullName, $email, $phone, $address, $password]);
-        $alertMessage = "User added successfully! Default password is 'password123'.";
+        $alertMessage = "User added successfully! Default password is '123456'.";
         $alertType = "alert-success";
     } catch (PDOException $e) {
         $alertMessage = "Error: Could not add user. " . $e->getMessage();
@@ -38,11 +38,10 @@ $showBackButton = true;
 ?>
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Add User - library Management</title>
+    <title>Add User - Library Management</title>
     <link rel="stylesheet" href="Dashboard.css">
     <style>
         .form-container {
@@ -53,29 +52,24 @@ $showBackButton = true;
             border-radius: 8px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
-
         .form-group {
             margin-bottom: 15px;
         }
-
         .form-group label {
             display: block;
             margin-bottom: 5px;
             font-weight: 600;
             color: var(--navy-blue);
         }
-
-        .form-group input,
-        .form-group textarea {
+        .form-group input, .form-group textarea {
             width: 100%;
             padding: 10px;
             border: 1px solid #ccc;
             border-radius: 4px;
             font-family: inherit;
         }
-
         .btn-submit {
-            background: var(--brand-crimson);
+            background: var(--sidebar-active);
             color: white;
             border: none;
             padding: 12px 20px;
@@ -84,13 +78,11 @@ $showBackButton = true;
             font-weight: bold;
             width: 100%;
         }
-
         .btn-submit:hover {
-            background: var(--brand-crimson-dark);
+            background: var(--sidebar-hover);
         }
     </style>
 </head>
-
 <body>
     <?php include 'header.php'; ?>
 
@@ -99,7 +91,7 @@ $showBackButton = true;
         <?php if ($alertMessage): ?>
             <div class="alert <?= $alertType ?>"><?= htmlspecialchars($alertMessage) ?></div>
         <?php endif; ?>
-
+        
         <form method="POST">
             <div class="form-group">
                 <label for="full_name">Full Name</label>
@@ -117,16 +109,8 @@ $showBackButton = true;
                 <label for="address">Address</label>
                 <textarea id="address" name="address" rows="3"></textarea>
             </div>
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required minlength="8">
-            </div>
-            <div class="form-group">
-                <label for="confirm_password">Confirm Password</label>
-                <input type="password" id="confirm_password" name="confirm_password" required minlength="8">
-            </div>
             <button type="submit" class="btn-submit">Add User</button>
         </form>
     </div>
     </div>
-    <?php include 'footer.php'; ?>
+<?php include 'footer.php'; ?>

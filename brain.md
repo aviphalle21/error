@@ -3,8 +3,8 @@
 ## Schema
 
 ```sql
-CREATE DATABASE IF NOT EXISTS library;
-USE library;
+CREATE DATABASE IF NOT EXISTS Library;
+USE Library;
 
 -- 1. Admin Table
 CREATE TABLE IF NOT EXISTS admin (
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS admin (
 );
 
 -- Insert Default Admin
-INSERT INTO admin (name, email, username, password)
+INSERT INTO admin (name, email, username, password) 
 VALUES ('Super Admin', 'admin@gmail.com', 'admin', 'admin123');
 
 -- 2. Users Table
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS users (
     account_status ENUM('Active', 'Inactive', 'Suspended') DEFAULT 'Active'
 );
 
--- 3. library Tables
+-- 3. Library Tables
 CREATE TABLE IF NOT EXISTS library_tables (
     table_id INT AUTO_INCREMENT PRIMARY KEY,
     unique_table_id VARCHAR(50) UNIQUE NOT NULL,
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS subscription_plans (
 );
 
 -- Insert Default Plans
-INSERT INTO subscription_plans (plan_name, duration_days, price, active) VALUES
+INSERT INTO subscription_plans (plan_name, duration_days, price, active) VALUES 
 ('1 Month', 30, 800.00, TRUE),
 ('3 Months', 90, 2200.00, TRUE);
 
@@ -109,6 +109,5 @@ CREATE TABLE IF NOT EXISTS bookings (
 - **Password:** admin123
 
 ## Setup Instructions
-
 1. Run `setup.php` to initialize the database and the default admin user.
 2. If running manually in phpMyAdmin, execute the `database.sql` script, then manually insert the admin user with a hashed password.

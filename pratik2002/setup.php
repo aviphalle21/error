@@ -8,8 +8,8 @@ try {
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
     // Create DB
-    $pdo->exec("CREATE DATABASE IF NOT EXISTS library");
-    $pdo->exec("USE library");
+    $pdo->exec("CREATE DATABASE IF NOT EXISTS Library");
+    $pdo->exec("USE Library");
 
     // Create admin table
     $pdo->exec("CREATE TABLE IF NOT EXISTS admin (
@@ -35,8 +35,8 @@ try {
     // Check if admin exists
     $stmt = $pdo->prepare("SELECT * FROM admin WHERE email = 'admin@gmail.com'");
     $stmt->execute();
-    if ($stmt->rowCount() == 0) {
-        $hash = password_hash('admin123', PASSWORD_DEFAULT);
+    if($stmt->rowCount() == 0) {
+        $hash = password_hash('admin1234', PASSWORD_DEFAULT);
         $insert = $pdo->prepare("INSERT INTO admin (name, email, username, password) VALUES ('Super Admin', 'admin@gmail.com', 'admin', ?)");
         $insert->execute([$hash]);
         echo "Admin created successfully.<br>";
@@ -45,6 +45,8 @@ try {
     }
 
     echo "Database setup complete.";
+
 } catch (PDOException $e) {
     die("DB Error: " . $e->getMessage());
 }
+?>

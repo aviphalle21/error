@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Admin Notification</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header { background-color: #1f2937; padding: 20px; color: white; }
+        .header h1 { margin: 0; font-size: 20px; }
+        .content { padding: 30px; color: #374151; line-height: 1.6; }
+        .notification-box { background-color: #f3f4f6; border-left: 4px solid #4b5563; padding: 15px 20px; margin: 20px 0; }
+        .footer { background-color: #f9fafb; padding: 15px; font-size: 11px; color: #9ca3af; border-top: 1px solid #e5e7eb; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 style="margin:0;">{{subject}}</h1>
+        </div>
+        <div class="content">
+            <p>System Notification,</p>
+            
+            <div class="notification-box">
+                {{message}}
+            </div>
+            
+            <p><small>This is an automated system message. Do not reply to this email.</small></p>
+        </div>
+        <div class="footer">
+            <p>Saraswati Abhyasika &bull; Internal System Notification</p>
+        </div>
+    </div>
+</body>
+</html>

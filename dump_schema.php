@@ -16,3 +16,4 @@ $sql .= "INSERT INTO `admin` (`name`, `email`, `username`, `password`, `created_
 
 file_put_contents('schema.sql', $sql);
 echo "Dumped to schema.sql";
+?>

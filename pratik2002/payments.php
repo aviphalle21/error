@@ -14,12 +14,12 @@ $alertType = '';
 if (isset($_POST['update_price'])) {
     $plan_id = $_POST['plan_id'];
     $new_price = $_POST['new_price'];
-
+    
     // Check if there are ANY active subscriptions using this plan
-    $checkStmt = $pdo->prepare("SELECT COUNT(*) as active_count FROM user_subscriptions WHERE plan_id = ? AND subscription_status = 'Active' AND payment_status = 'Paid'");
+    $checkStmt = $pdo->prepare("SELECT COUNT(*) as active_count FROM user_subscriptions WHERE plan_id = ? AND subscription_status = 'Active'");
     $checkStmt->execute([$plan_id]);
     $activeCount = $checkStmt->fetchColumn();
-
+    
     if ($activeCount > 0) {
         $alertMessage = "Cannot change price. There is currently $activeCount active subscription(s) on this plan.";
         $alertType = "alert-error";
@@ -62,18 +62,16 @@ $subscriptions = $subStmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Payments & Plans - library Management</title>
+    <title>Payments & Plans - Library Management</title>
     <link rel="stylesheet" href="Dashboard.css">
 </head>
-<?php
+<?php 
 $pageTitle = 'Payments & Plans';
 $showBackButton = true;
 ?>
-
 <body>
     <?php include 'header.php'; ?>
 
@@ -89,7 +87,7 @@ $showBackButton = true;
                     <h3><?= htmlspecialchars($plan['plan_name']) ?></h3>
                     <div class="price">₹<?= number_format($plan['price'], 2) ?></div>
                     <p style="color: var(--text-muted); font-size:0.9rem; margin-bottom: 10px;">Duration: <?= $plan['duration_days'] ?> Days</p>
-
+                    
                     <form method="POST" class="price-edit-form">
                         <input type="hidden" name="plan_id" value="<?= $plan['plan_id'] ?>">
                         <input type="number" name="new_price" value="<?= floor($plan['price']) ?>" min="0" required>
@@ -98,7 +96,7 @@ $showBackButton = true;
                 </div>
             <?php endforeach; ?>
         </div>
-
+        
         <!-- SECTION 2: PAYMENTS & SUBSCRIPTIONS -->
         <div class="table-container">
             <div class="table-header">
@@ -119,20 +117,20 @@ $showBackButton = true;
                     <tbody>
                         <?php if (count($subscriptions) > 0): ?>
                             <?php foreach ($subscriptions as $sub): ?>
-                                <?php
-                                // Calculate expiry status logically
-                                $expiryTime = strtotime($sub['expiry_date']);
-                                $currentTime = time();
-                                $daysRemaining = ($expiryTime - $currentTime) / (60 * 60 * 24);
-
-                                $expiryBadge = '';
-                                if ($daysRemaining < 0) {
-                                    $expiryBadge = '<span class="badge badge-danger">Expired</span>';
-                                } elseif ($daysRemaining <= 7) {
-                                    $expiryBadge = '<span class="badge badge-warning">Expiring Soon</span>';
-                                } else {
-                                    $expiryBadge = '<span class="badge badge-active">Active</span>';
-                                }
+                                <?php 
+                                    // Calculate expiry status logically
+                                    $expiryTime = strtotime($sub['expiry_date']);
+                                    $currentTime = time();
+                                    $daysRemaining = ($expiryTime - $currentTime) / (60 * 60 * 24);
+                                    
+                                    $expiryBadge = '';
+                                    if ($daysRemaining < 0) {
+                                        $expiryBadge = '<span class="badge badge-danger">Expired</span>';
+                                    } elseif ($daysRemaining <= 7) {
+                                        $expiryBadge = '<span class="badge badge-warning">Expiring Soon</span>';
+                                    } else {
+                                        $expiryBadge = '<span class="badge badge-active">Active</span>';
+                                    }
                                 ?>
                                 <tr>
                                     <td data-label="User Details">
@@ -168,4 +166,4 @@ $showBackButton = true;
         </div>
     </div>
     </div>
-    <?php include 'footer.php'; ?>
+<?php include 'footer.php'; ?>

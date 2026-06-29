@@ -1,0 +1,1 @@
+(function() { const theme = localStorage.getItem('userTheme'); if (theme === 'dark') { document.documentElement.setAttribute('data-theme', 'dark'); } })();

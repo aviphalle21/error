@@ -110,14 +110,55 @@ try {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="dashboard.css">
     <style>
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 25px; }
-        .stat-card { background: rgba(59,130,246,0.1); padding: 15px; border-radius: 12px; text-align: center; border: 1px solid rgba(59,130,246,0.2); }
-        .stat-val { font-size: 1.8rem; font-weight: bold; color: var(--text-main); margin-bottom: 5px; }
-        .stat-label { font-size: 0.85rem; color: var(--text-muted); }
-        .history-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        .history-table th, .history-table td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border-color); }
-        .history-table th { background: rgba(0,0,0,0.02); font-weight: 600; }
-        .badge-present { background: #d1fae5; color: #065f46; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; }
+        body { background-color: var(--bg-primary); }
+        .dashboard-container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .stat-card { 
+            background: var(--bg-secondary); 
+            padding: 25px 20px; 
+            border-radius: 16px; 
+            text-align: center; 
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .stat-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px rgba(0,0,0,0.05); }
+        .stat-val { font-size: 2.2rem; font-weight: 700; color: #3b82f6; margin-bottom: 8px; letter-spacing: -0.5px; }
+        .stat-label { font-size: 0.9rem; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+        .history-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 15px; }
+        .history-table th, .history-table td { padding: 16px; text-align: left; border-bottom: 1px solid var(--border-color); }
+        .history-table th { background: rgba(0,0,0,0.01); font-weight: 600; color: var(--text-muted); text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.5px; }
+        .history-table tr:hover td { background: rgba(0,0,0,0.01); }
+        .badge-present { background: rgba(16, 185, 129, 0.15); color: #047857; padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; }
+        .mark-btn {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            padding: 16px 45px;
+            font-size: 1.15rem;
+            font-weight: 600;
+            border-radius: 50px;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+            transition: all 0.3s ease;
+        }
+        .mark-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 25px rgba(59, 130, 246, 0.4);
+        }
+        .present-status-box {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 18px 35px;
+            background: rgba(16, 185, 129, 0.1);
+            color: #047857;
+            border-radius: 16px;
+            font-weight: 600;
+            font-size: 1.15rem;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+        .section-title { margin-bottom: 20px; font-size: 1.25rem; font-weight: 600; color: var(--text-main); }
     </style>
 </head>
 <body>
@@ -150,24 +191,24 @@ try {
     <?php endif; ?>
 
     <div class="card">
-        <div style="text-align: center; margin-bottom: 30px;">
-            <h3>Today's Attendance</h3>
-            <p style="color:var(--text-muted); margin-bottom: 20px;"><?= date('l, d F Y') ?></p>
+        <div style="text-align: center; margin-bottom: 40px; padding: 20px 0;">
+            <p style="color:var(--text-muted); margin-bottom: 25px; font-weight: 500; font-size: 1.1rem;"><?= date('l, d F Y') ?></p>
             <?php if ($todayRecord): ?>
-                <div style="display:inline-block; padding: 15px 30px; background:#d1fae5; color:#065f46; border-radius:12px; font-weight:bold; font-size:1.1rem; border:1px solid #34d399;">
-                    ✓ Marked Present at <?= date('h:i A', strtotime($todayRecord['check_in_time'])) ?>
+                <div class="present-status-box">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    Marked Present at <?= date('h:i A', strtotime($todayRecord['check_in_time'])) ?>
                 </div>
             <?php else: ?>
                 <form method="POST">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Security::generateCSRFToken()) ?>">
-                    <button type="submit" name="mark_attendance" class="btn-primary" style="padding: 15px 40px; font-size: 1.1rem; border-radius:30px; background:var(--header-bg); color:#fff; border:none; cursor:pointer;">
+                    <button type="submit" name="mark_attendance" class="mark-btn">
                         Mark Present
                     </button>
                 </form>
             <?php endif; ?>
         </div>
 
-        <h3 style="margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom:10px;">Overview</h3>
+        <h3 class="section-title">Overview</h3>
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-val"><?= $monthlyPresent ?></div>
@@ -185,7 +226,7 @@ try {
             </div>
         </div>
 
-        <h3 style="margin-top: 30px; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom:10px;">Recent History</h3>
+        <h3 class="section-title" style="margin-top: 40px;">Recent History</h3>
         <?php if(count($attendanceList) > 0): ?>
             <div style="overflow-x: auto;">
                 <table class="history-table">
