@@ -9,6 +9,9 @@ $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
+        if (!$pdo instanceof PDO) {
+            throw new Exception('Database connection is not available. Please complete database setup first.');
+        }
         $keys = [
             'library_name', 'library_logo', 'website_url', 
             'contact_number', 'support_email', 'timezone', 
@@ -17,11 +20,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         $pdo->beginTransaction();
         
-        $stmt = $pdo->prepare("UPDATE system_settings SET setting_value = ? WHERE setting_key = ?");
+        $stmt = $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
         
         foreach ($keys as $key) {
             if (isset($_POST[$key])) {
-                $stmt->execute([$_POST[$key], $key]);
+                $stmt->execute([$key, $_POST[$key]]);
             }
         }
         
@@ -29,7 +32,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header("Location: step4.php");
         exit;
     } catch (Exception $e) {
-        $pdo->rollBack();
+        if ($pdo instanceof PDO && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         $error = "Failed to save settings: " . $e->getMessage();
     }
 }

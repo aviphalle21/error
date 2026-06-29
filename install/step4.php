@@ -20,13 +20,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = "Password must be at least 8 characters.";
     } else {
         try {
+            if (!$pdo instanceof PDO) {
+                throw new Exception('Database connection is not available. Please complete database setup first.');
+            }
             $hashed = password_hash($password, PASSWORD_DEFAULT);
             $stmt = $pdo->prepare("INSERT INTO admin (name, email, username, password) VALUES (?, ?, ?, ?)");
             $stmt->execute([$name, $email, $username, $hashed]);
             
             header("Location: step5.php");
             exit;
-        } catch (PDOException $e) {
+        } catch (Exception $e) {
             $error = "Failed to create admin: " . $e->getMessage();
         }
     }
